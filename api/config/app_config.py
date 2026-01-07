@@ -9,6 +9,7 @@ class Config:
     JWT_ALGORITHM_HPW = os.environ.get('JWT_ALGORITHM_HPW')
     JWT_EXP_DELTA_SECONDS = int(os.environ.get('JWT_EXP_DELTA_SECONDS'))
     PORT=int(os.environ.get('PORT'))
+    MAIL_SERVER = os.environ.get('MAIL')
     # for development, must change the value once in production
     FLASK_ENV = os.environ.get('FLASK_ENV')
     FLASK_DEBUG = os.environ.get('FLASK_DEBUG')

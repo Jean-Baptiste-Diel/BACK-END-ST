@@ -1,7 +1,7 @@
 import secrets
 import base64
 import re
-from datetime import timedelta
+from datetime import timedelta, datetime
 from flask import current_app, jsonify
 from flask_jwt_extended import create_access_token
 from typing import Any, Optional, Union
@@ -19,7 +19,6 @@ def is_valid_mail_format(mail: str) -> bool:
 def hash_password(password: str) -> str:
     password = password.strip()
     return generate_password_hash(password)
-
 
 def generate_key(length: int = 32) -> str:
     """
@@ -89,5 +88,48 @@ def validate_payload(payload: Any, required_fields: Optional[Union[list, dict]] 
     else:
         raise CheckError("Invalid required_fields format", 400)
 
+def cleanup_codes(VerificationCode, db):
+    """
+    cleaning up the expired or used code in the database
+    :param db:
+    :param VerificationCode:
+    :return:
+    """
+    try:
+        now = datetime.now()
+        expired_codes = VerificationCode.query.filter((VerificationCode.checked == True) | (VerificationCode.expiry < now)).all()
+        for record in expired_codes:
+            record.checked = False
+            record.code = None
+            record.expiry = None
+        db.session.commit()
+    except CheckError as err:
+        raise CheckError(str(err), err.error_code)
+    except Exception as err:
+        raise CheckError(str(err), 400)
+
+def generate_new_code(mail, VerificationCode, db):
+    """
+    generate a verification code
+    :param db:
+    :param VerificationCode:
+    :param mail: str
+    :return: code: int
+    """
+    cleanup_codes(VerificationCode, db)
+    code = secrets.randbelow(90000000) + 10000000
+    expiry = datetime.now() + timedelta(minutes=10)
+
+    record = VerificationCode.query.filter_by(mail=mail).first()
+    if record:
+        record.code = code
+        record.expiry = expiry
+        record.checked = False
+    else:
+        record = VerificationCode(mail=mail, code=code, expiry=expiry)
+        db.session.add(record)
+
+    db.session.commit()
+    return code
 
 

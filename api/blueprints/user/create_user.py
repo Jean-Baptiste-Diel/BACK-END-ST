@@ -11,7 +11,7 @@ create_user_bp = Blueprint('create_user', __name__)
 def create_user():
     try:
         payload = request.get_json()
-        required_fields = ['farm_name', 'mail', 'password']
+        required_fields = ['farm_name', 'mail', 'password', 'address', 'phone_number']
         validate_payload(payload, required_fields)
 
         if not is_valid_mail_format(payload.get('mail')):
@@ -20,7 +20,9 @@ def create_user():
         if not User.query.filter_by(mail=payload.get('mail').strip().lower()).first():
             user = User(farm_name = payload.get('farm_name'),
                         mail = payload.get('mail').strip().lower(),
-                        password=payload.get('password'))
+                        password=payload.get('password'),
+                        phone_number = payload.get('phone_number').strip(),
+                        address = payload.get('address').strip())
 
             db.session.add(user)
             db.session.commit()

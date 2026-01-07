@@ -9,7 +9,11 @@ import pytest
     # Scenario 3: password is an empty dict
     {"farm_name": "Sotilma Farm", "mail": "sotilma@gmail.com", "password": {}},
     # Scenario 4: not str data type
-    {'farm_name': 1233, 'mail': 'sotilma@gmail.com', 'password': 'soltima'}
+    {'farm_name': 1233, 'mail': 'sotilma@gmail.com', 'password': 'soltima'},
+    # Scenario 5: no phone number
+    {'farm_name': "Sotilma Farm", 'mail': 'sotilma@gmail.com', 'password': 'soltima', "address": "Zack Mbao"},
+    # Scenario 6: no address
+    {'farm_name': "Sotilma Farm", 'mail': 'sotilma@gmail.com', 'password': 'soltima', "phone_number": "+221783456720"}
 ])
 def test_create_user_invalid_payloads(client, payload):
     response = client.post("/create-user", json=payload)
@@ -22,7 +26,9 @@ def test_create_user_success(client):
     payload = {
         "farm_name": "Sotilma Farm",
         "mail": "sotilma@gmail.com",
-        "password": "soltima"
+        "password": "soltima",
+        "phone_number": "+221783456720",
+        "address": "Zack Mbao"
     }
     response = client.post("/create-user", json=payload)
     assert response.status_code == 201
@@ -36,7 +42,9 @@ def test_create_user_already_exists(client):
     payload = {
         "farm_name": "Sotilma Farm",
         "mail": "sotilma@gmail.com",
-        "password": "soltima"
+        "password": "soltima",
+        "phone_number": "+221783456720",
+        "address": "Zack Mbao"
     }
 
     # First creation should succeed
