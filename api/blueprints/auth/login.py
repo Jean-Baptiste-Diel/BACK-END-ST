@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 
 from api.utils.error_class import CheckError
-from api.utils.utils_func import tokenize, validate_payload
+from api.utils.utils_func import tokenize, validate_payload, is_valid_mail_format
 from api.config.model import db, User
 from werkzeug.security import check_password_hash
 
@@ -14,10 +14,14 @@ def login():
         required_fields = ['mail', 'password']
         validate_payload(payload, required_fields)
 
-        if not (user := User.query.filter_by(mail=payload['mail']).first()):
-            return jsonify({'message': 'Invalid credentials, mail or password incorrect'}), 401
-        if not check_password_hash(user.hashed_password, payload.get('password')):
-            return jsonify({'message': 'Invalid credentials, mail or password incorrect'}), 401
+        mail = payload['mail'].strip()
+        password = payload['password'].strip()
+        if not is_valid_mail_format(mail):
+            return jsonify({'message': 'Incorrect mail format.'}), 400
+        if not (user := User.query.filter_by(mail=mail).first()):
+            return jsonify({'message': 'Invalid credentials, mail or password incorrect.'}), 401
+        if not check_password_hash(user.hashed_password, password):
+            return jsonify({'message': 'Invalid credentials, mail or password incorrect.'}), 401
 
         # creating token after successful connection
         claims ={"id_culture_type": user.id_culture_type}
