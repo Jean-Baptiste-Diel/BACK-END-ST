@@ -21,10 +21,6 @@ def create_app(test_config=None):
     migrate.init_app(app=app, db=db)
     db.init_app(app=app)
     register_routes(app)
-    jtw_manager = JWTManager(app)
-    migrate.init_app(app=app, db=db)
-    db.init_app(app=app)
-    register_routes(app)
 
     if test_config is not None:
         app.config.update(test_config)
