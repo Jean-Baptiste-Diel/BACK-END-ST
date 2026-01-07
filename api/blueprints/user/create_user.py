@@ -3,7 +3,8 @@ from api.utils.error_class import CheckError
 from flask import Blueprint, request, jsonify
 from api.config.model import db, User
 
-
+import logging
+logging.basicConfig(level=logging.DEBUG)
 create_user_bp = Blueprint('create_user', __name__)
 
 @create_user_bp.route('/create-user', methods=['POST'])
@@ -29,14 +30,18 @@ def create_user():
             # creating a token with the necessary claims(informations)
             claims = {'id_culture_type': user.id_culture_type}
             token = tokenize(user.id_user, claims)
+            create_user_bp.logger.error("Account created successfully.")
             return jsonify({'message': 'Account created successfully.',
                             'token': token}), 201
 
         else:
+            create_user_bp.logger.error("Account already exists.")
             return jsonify({'message': 'Account already exists.'}), 409
     except CheckError as err:
         db.session.rollback()
+        create_user_bp.logger.error(str(err))
         return jsonify({'message': str(err)}), err.error_code
     except Exception as err:
         db.session.rollback()
+        create_user_bp.logger.error(str(err))
         return jsonify({'message': str(err)}), 500
