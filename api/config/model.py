@@ -1,6 +1,5 @@
 from datetime import datetime
 from flask_sqlalchemy import SQLAlchemy
-from api.utils.utils_func import hash_password
 
 db: SQLAlchemy = SQLAlchemy()
 
@@ -11,22 +10,22 @@ class User(db.Model):
     farm_name = db.Column(db.String(200), nullable=False)
     mail = db.Column(db.String(100), nullable=False, unique=True)
     hashed_password = db.Column(db.String(200), nullable=False)
-    address = db.Column(db.String(200), nullable=False)
+    location = db.Column(db.String(200), nullable=False)
     phone_number = db.Column(db.String(20), nullable=False, unique=True)
 
-    def __init__(self, farm_name:str, mail:str, password:str, address:str, phone_number:str):
+    def __init__(self, farm_name:str, mail:str, hash_password:str, location:str, phone_number:str):
         self.farm_name = farm_name
         self.mail = mail
-        self.hashed_password = hash_password(password)
-        self.address = address
+        self.hashed_password = hash_password
+        self.location = location
         self.phone_number = f'+221{phone_number}'
 
     def serialize(self):
         return {
             "farm_name": self.farm_name,
             "mail": self.mail,
-            "id_culture_type": self.culture_type.name,
-            "address": self.address,
+            "id_culture_type": self.id_culture_type,
+            "location": self.location,
             "phone_number": self.phone_number
         }
 

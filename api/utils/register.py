@@ -6,8 +6,7 @@ from api.utils.utils_func import CheckError
 
 BLUEPRINTS = [
     create_user_bp,
-    login_bp,
-    reset_password_bp, request_reset_bp
+    login_bp
 ]
 
 def register_routes(app):

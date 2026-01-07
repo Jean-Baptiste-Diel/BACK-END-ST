@@ -11,7 +11,7 @@ import pytest
     # Scenario 4: not str data type
     {'farm_name': 1233, 'mail': 'sotilma@gmail.com', 'password': 'soltima'},
     # Scenario 5: no phone number
-    {'farm_name': "Sotilma Farm", 'mail': 'sotilma@gmail.com', 'password': 'soltima', "address": "Zack Mbao"},
+    {'farm_name': "Sotilma Farm", 'mail': 'sotilma@gmail.com', 'password': 'soltima', "location": "Zack Mbao"},
     # Scenario 6: no address
     {'farm_name': "Sotilma Farm", 'mail': 'sotilma@gmail.com', 'password': 'soltima', "phone_number": "+221783456720"}
 ])
@@ -22,13 +22,13 @@ def test_create_user_invalid_payloads(client, payload):
     assert "message" in data
 
 # Test correct creation with correct parameters
-def test_create_user_success(client):
+def test_create_user_success(client, db_session):
     payload = {
         "farm_name": "Sotilma Farm",
         "mail": "sotilma@gmail.com",
         "password": "soltima",
         "phone_number": "+221783456720",
-        "address": "Zack Mbao"
+        "location": "Zack Mbao"
     }
     response = client.post("/create-user", json=payload)
     assert response.status_code == 201
@@ -38,13 +38,13 @@ def test_create_user_success(client):
     assert isinstance(data["token"], str)
 
 # Test creating user already existing
-def test_create_user_already_exists(client):
+def test_create_user_already_exists(client, db_session):
     payload = {
         "farm_name": "Sotilma Farm",
         "mail": "sotilma@gmail.com",
         "password": "soltima",
         "phone_number": "+221783456720",
-        "address": "Zack Mbao"
+        "location": "Zack Mbao"
     }
 
     # First creation should succeed

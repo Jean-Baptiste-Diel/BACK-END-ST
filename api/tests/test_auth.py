@@ -1,5 +1,5 @@
 import pytest
-
+from api.utils.utils_func import hash_password
 
 @pytest.mark.parametrize(
     "payload",
@@ -30,9 +30,18 @@ def test_login_incorrect_credentials(client, bad_payload):
 
 
 def test_login_correct(client):
-    client.post('/create-user', json={'mail': 'sotilma@gmail.com', 'password': 'SotilmaFarm', 'farm_name': 'Sotilma'})
+    client.post('/create-user', json={
+        'mail': 'sotilma@gmail.com',
+        'password': 'SotilmaFarm',
+        'farm_name': 'Sotilma',
+        'location': 'Zack Mbao',
+        'phone_number': '784562811',
+    })
 
-    response = client.post('/login', json={'mail': 'sotilma@gmail.com', 'password': 'SotilmaFarm'})
+    response = client.post('/login', json={
+        'mail': 'sotilma@gmail.com',
+        'password': 'SotilmaFarm'
+    })
     assert response.status_code == 200
     data = response.get_json()
     assert 'message' in data
