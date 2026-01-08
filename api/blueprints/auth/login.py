@@ -21,6 +21,7 @@ def login():
             user = User.query.filter_by(mail=identifier.lower()).first()
             current_app.logger.info(f"Tentative login par mail: {identifier}")
         else:
+            identifier = "+221"+identifier
             user = User.query.filter_by(phone_number=identifier).first()
             current_app.logger.info(f"Tentative login par téléphone: {identifier}")
 
