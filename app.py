@@ -3,6 +3,8 @@ from flask import Flask
 from flask_migrate import Migrate
 from dotenv import load_dotenv
 from flask_jwt_extended import JWTManager
+
+from api.blueprints.camera.camera import bp_camera
 from api.config.model import db
 from api.extension.cors import init_cors
 from api.extension.logging import init_logging
@@ -21,7 +23,7 @@ def create_app(test_config=None):
     migrate.init_app(app=app, db=db)
     db.init_app(app=app)
     register_routes(app)
-
+    app.register_blueprint(bp_camera)
     if test_config is not None:
         app.config.update(test_config)
 
