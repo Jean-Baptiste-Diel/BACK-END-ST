@@ -2,11 +2,15 @@ import secrets
 import base64
 import re
 from datetime import timedelta, datetime
-from flask import current_app, jsonify
+from flask import current_app
 from flask_jwt_extended import create_access_token
 from typing import Any, Optional, Union
 from werkzeug.security import generate_password_hash
 from api.utils.error_class import CheckError
+from flask import render_template
+
+from flask_mail import Message
+from api.extension.mail_sms import mail
 
 SIMPLE_RE = re.compile(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$")
 
@@ -108,28 +112,52 @@ def cleanup_codes(VerificationCode, db):
     except Exception as err:
         raise CheckError(str(err), 400)
 
-def generate_new_code(mail, VerificationCode, db):
+def generate_new_code(id_user, VC, db):
     """
     generate a verification code
+    :param id_user:
     :param db:
-    :param VerificationCode:
-    :param mail: str
+    :param VC:
     :return: code: int
     """
-    cleanup_codes(VerificationCode, db)
+    cleanup_codes(VC, db)
     code = secrets.randbelow(90000000) + 10000000
     expiry = datetime.now() + timedelta(minutes=10)
 
-    record = VerificationCode.query.filter_by(mail=mail).first()
+    record = VC.query.filter_by(id_user==id_user).first()
     if record:
         record.code = code
         record.expiry = expiry
         record.checked = False
+        db.session.commit()
     else:
-        record = VerificationCode(mail=mail, code=code, expiry=expiry)
+        record = VC(id_user=id_user, code=code, expiry=expiry)
         db.session.add(record)
-
-    db.session.commit()
+        db.session.commit()
     return code
 
+def send_verification_code(code: int, field_value:str, value: Any):
+    try:
+        match field_value:
+            case "mail":
+                if isinstance(value, str) and is_valid_mail_format(value):
+                    html_page = render_template('mail_reset', code=code)
+                    mail_message = Message(
+                        sender=current_app.config["MAIL_USERNAME"],
+                        subject="Account Password Reset",
+                        recipients=[value]
+                    )
+                    mail_message.html = html_page
+                    mail.send(mail_message)
 
+                    current_app.logger.error(f"Verification code was sent to your email address: {value}")
+                    return True
+
+            case "phone_number":
+                return True
+
+            case _:  # Default case
+                raise CheckError(f"Invalid json data, field {field_value} does not exist", 400)
+    except CheckError as err:
+        current_app.logger.error(str(err))
+        raise CheckError(str(err), 400)

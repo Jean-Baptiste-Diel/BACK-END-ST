@@ -19,8 +19,7 @@ def create_user():
             current_app.logger.warning(f"Format de mail invalide: {payload.get('mail')}")
             return jsonify({'message': 'Invalid Mail format'}), 400
 
-        existing_user = User.query.filter_by(mail=payload.get('mail').strip().lower()).first()
-        if not existing_user:
+        if not (curr_user := User.query.filter_by(mail=payload.get('mail').strip().lower()).first()):
             user = User(
                 farm_name=payload.get('farm_name').strip(),
                 mail=payload.get('mail').strip().lower(),
@@ -40,7 +39,7 @@ def create_user():
 
             return jsonify({'message': 'Account created successfully.', 'token': token}), 201
         else:
-            current_app.logger.warning(f"Compte déjà existant: {existing_user.mail}")
+            current_app.logger.warning(f"Compte déjà existant: {curr_user.mail}")
             return jsonify({'message': 'Account already exists.'}), 409
 
     except CheckError as err:
