@@ -12,7 +12,6 @@ def forgot_password():
     try:
         fields = ['mail', 'phone_number']
         payload = request.get_json()
-
         current_field = [field for field in fields if field in payload]
         if len(current_field) == 1:
             current_app.logger.info(f'{current_field[0]} provided')
