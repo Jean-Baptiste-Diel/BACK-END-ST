@@ -1,6 +1,5 @@
 from flask import Blueprint, jsonify, request, current_app, session
 from api.config.model import db, VerificationCode as VC, User, VerificationCode
-from datetime import datetime
 
 from api.utils.error_class import CheckError
 from api.utils.utils_func import validate_payload, is_valid_mail_format, generate_new_code, send_verification_code
