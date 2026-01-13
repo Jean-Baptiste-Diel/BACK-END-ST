@@ -4,6 +4,7 @@ from flask_migrate import Migrate
 from dotenv import load_dotenv
 from flask_jwt_extended import JWTManager
 
+from api.blueprints.camera.b import bd_c
 from api.blueprints.camera.camera import bp_camera
 from api.config.model import db
 from api.extension.cors import init_cors
@@ -24,6 +25,7 @@ def create_app(test_config=None):
     db.init_app(app=app)
     register_routes(app)
     app.register_blueprint(bp_camera)
+    app.register_blueprint(bd_c)
     if test_config is not None:
         app.config.update(test_config)
 
