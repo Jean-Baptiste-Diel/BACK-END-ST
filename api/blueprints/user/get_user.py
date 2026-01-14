@@ -8,6 +8,6 @@ def get_user(id):
         user = db.session.get(User, id)
         if not user:
             return jsonify({"message": "utilisateur introuvable"}), 404
-        return jsonify(user.to_dict()), 200
+        return jsonify(user.serialize()), 200
     except SQLAlchemyError as e:
         return jsonify({"message": str(e)}), 500

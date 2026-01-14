@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify, current_app
 
+from api.blueprints.user.get_user import get_user
 from api.utils.error_class import CheckError
 from api.utils.utils_func import tokenize, validate_payload, is_valid_mail_format
 from api.config.model import db, User
@@ -48,3 +49,15 @@ def login():
     except Exception as err:
         current_app.logger.exception(f"Erreur inattendue: {str(err)}")
         return jsonify({'message': str(err)}), 500
+
+
+@login_bp.route('/get_user', methods=['GET'])
+def get_user_route():
+    user_id = request.args.get("id")
+    if not user_id:
+        return jsonify({"message": "id manquant"}), 400
+    try:
+        user_id = int(user_id)
+    except ValueError:
+        return jsonify({"message": "id invalide"}), 400
+    return get_user(user_id)
