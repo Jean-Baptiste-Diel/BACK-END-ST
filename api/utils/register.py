@@ -1,10 +1,16 @@
+from api.blueprints.auth.forgot_password import forgot_password_bp
+from api.blueprints.camera.camera import bp_camera
+from api.blueprints.meteo.bp_meteo import bp_meteo
 from api.blueprints.user.create_user import create_user_bp
 from api.blueprints.auth.login import login_bp
 from api.utils.utils_func import CheckError
 
 BLUEPRINTS = [
     create_user_bp,
-    login_bp
+    login_bp,
+    bp_camera,
+    bp_meteo,
+    forgot_password_bp
 ]
 
 def register_routes(app):

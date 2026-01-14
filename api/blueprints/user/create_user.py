@@ -44,7 +44,6 @@ def create_user():
 
     except CheckError as err:
         db.session.rollback()
-        current_app.logger.error(f"CheckError: {str(err)}")
         return jsonify({'message': str(err)}), err.error_code
 
     except Exception as err:
