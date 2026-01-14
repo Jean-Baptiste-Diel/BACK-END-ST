@@ -14,7 +14,7 @@ migrate = Migrate()
 def create_app(test_config=None):
     app = Flask(__name__)
 
-    app.config.from_object("api.config.app_config.Config") # .env variable configuration
+    app.config.from_object("api.config.app_config.Config")
     init_logging(app)
     init_cors(app)
     jtw_manager = JWTManager(app)
