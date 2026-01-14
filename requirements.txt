@@ -1,4 +1,4 @@
-﻿alembic==1.17.2
+alembic==1.17.2
 blinker==1.9.0
 click==8.3.1
 colorama==0.4.6
@@ -8,7 +8,6 @@ flask-cors==6.0.2
 Flask-JWT-Extended==4.7.1
 Flask-Migrate==4.1.0
 Flask-SQLAlchemy==3.1.1
-flask-mail
 greenlet==3.3.0
 gunicorn==23.0.0
 iniconfig==2.3.0
@@ -27,7 +26,5 @@ SQLAlchemy==2.0.45
 typing_extensions==4.15.0
 Werkzeug==3.1.5
 logging
+flask-mail
 requests
-
-
-
