@@ -62,5 +62,5 @@ def meteo_location(location: str):
     return return_meteo(location)
 
 @bp_meteo.route('/meteos', methods=['GET'])
-def meteo_locations():
+def meteos_locations():
     return return_meteo("Dakar")
