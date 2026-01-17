@@ -53,13 +53,13 @@ def get_token():
     except requests.exceptions.RequestException as e:
         print("Erreur réseau :", e)
         return jsonify({"error": "Erreur réseau", "details": str(e)}), 500
-
 #  LIST DEVICES
 @bp_camera.route('/devices', methods=['GET'])
 def list_devices():
     token_response = get_token()
     if token_response.status_code != 200:
         return token_response
+
     token = token_response.get_json()["accessToken"]
     timestamp, nonce, sign = generate_sign()
 
@@ -74,23 +74,28 @@ def list_devices():
         "id": str(uuid.uuid4()),
         "params": {
             "token": token,
-            "queryRange": "1-10"
+            "page": 1,
+            "pageSize": 20,
+            "source": "bindAndShare"
         }
     }
-    url = f"https://openapi-{DATACENTER}.easy4ip.com/openapi/liveList"
+
+    url = f"https://openapi-{DATACENTER}.easy4ip.com/openapi/listDeviceDetailsByPage"
+
     try:
         response = requests.post(url, json=body, timeout=10)
         data = response.json()
         print("Réponse devices :", data)
 
         if "result" in data and data["result"]["code"] == "0":
-            return jsonify(data["result"]["data"])
+            # Retourne la liste des devices
+            return jsonify(data["result"]["data"]["deviceList"])
         else:
             return jsonify({"error": "Impossible de récupérer la liste des devices", "response": data}), 400
-
     except requests.exceptions.RequestException as e:
         print("Erreur réseau :", e)
         return jsonify({"error": "Erreur réseau", "details": str(e)}), 500
+
 
 # GET LIVE URL
 @bp_camera.route('/liveurl', methods=['GET'])
