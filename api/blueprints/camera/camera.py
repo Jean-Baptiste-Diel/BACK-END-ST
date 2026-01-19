@@ -85,16 +85,43 @@ def list_devices():
     try:
         response = requests.post(url, json=body, timeout=10)
         data = response.json()
-        print("Réponse devices :", data)
 
-        if "result" in data and data["result"]["code"] == "0":
-            # Retourne la liste des devices
-            return jsonify(data["result"]["data"]["deviceList"])
-        else:
-            return jsonify({"error": "Impossible de récupérer la liste des devices", "response": data}), 400
+        if data.get("result", {}).get("code") != "0":
+            return jsonify({
+                "error": "Impossible de récupérer la liste des devices",
+                "response": data
+            }), 400
+
+        devices = []
+
+        for d in data["result"]["data"].get("deviceList", []):
+
+            channels = d.get("channels", [])
+
+            # 🔒 Sécurité : certaines caméras n'ont pas de channels
+            if not channels:
+                channels = [{
+                    "channelId": 0,
+                    "channelName": "Main",
+                    "status": "online",
+                    "movable": False
+                }]
+
+            devices.append({
+                "deviceId": d.get("deviceId"),
+                "deviceName": d.get("deviceName"),
+                "deviceStatus": d.get("deviceStatus"),
+                "playToken": d.get("playToken"),
+                "channels": channels
+            })
+
+        return jsonify(devices)
+
     except requests.exceptions.RequestException as e:
-        print("Erreur réseau :", e)
-        return jsonify({"error": "Erreur réseau", "details": str(e)}), 500
+        return jsonify({
+            "error": "Erreur réseau",
+            "details": str(e)
+        }), 500
 
 
 # GET LIVE URL
