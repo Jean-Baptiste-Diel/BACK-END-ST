@@ -21,6 +21,7 @@ def generate_sign():
 @bp_camera.route('/get-token', methods=['GET'])
 def get_token():
     timestamp, nonce, sign = generate_sign()
+
     body = {
         "system": {
             "ver": "1.0",
@@ -32,27 +33,51 @@ def get_token():
         "id": str(uuid.uuid4()),
         "params": {}
     }
+
     url = f"https://openapi-{DATACENTER}.easy4ip.com/openapi/accessToken"
+
     try:
         response = requests.post(url, json=body, timeout=10)
         data = response.json()
         print("Réponse brute Imou :", data)
+
         if "result" in data and data["result"]["code"] == "0":
             token = data["result"]["data"]["accessToken"]
+            raw_domain = data["result"]["data"]["currentDomain"]
+
+            # 🔥 CORRECTION DOMAIN POUR ANDROID SDK
+            clean_domain = (
+                raw_domain
+                .replace("https://", "")
+                .replace("http://", "")
+                .split(":")[0]
+            )
+
             print("Access Token :", token)
-            # On renvoie token + timestamp + nonce + sign
+            print("Domain brut :", raw_domain)
+            print("Domain clean :", clean_domain)
+
             return jsonify({
                 "accessToken": token,
-                "currentDomain": data["result"]["data"]["currentDomain"],
+                "currentDomain": clean_domain,  # ✅ SDK compatible
                 "timestamp": timestamp,
                 "nonce": nonce,
                 "sign": sign
             })
+
         else:
-            return jsonify({"error": "Impossible de récupérer le token", "response": data}), 400
+            return jsonify({
+                "error": "Impossible de récupérer le token",
+                "response": data
+            }), 400
+
     except requests.exceptions.RequestException as e:
         print("Erreur réseau :", e)
-        return jsonify({"error": "Erreur réseau", "details": str(e)}), 500
+        return jsonify({
+            "error": "Erreur réseau",
+            "details": str(e)
+        }), 500
+
 #  LIST DEVICES
 @bp_camera.route('/devices', methods=['GET'])
 def list_devices():
