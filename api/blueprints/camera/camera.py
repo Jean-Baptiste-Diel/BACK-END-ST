@@ -96,22 +96,26 @@ def list_devices():
 
         for d in data["result"]["data"].get("deviceList", []):
 
-            channels = d.get("channels", [])
+            # 🔐 Nettoyage du playToken (CRITIQUE)
+            play_token = (d.get("playToken") or "").replace(" ", "")
 
-            # 🔒 Sécurité : certaines caméras n'ont pas de channels
+            # 📡 Channels
+            channels = d.get("channels") or []
+
+            # Si aucun channel fourni par Imou → on en crée un par défaut
             if not channels:
                 channels = [{
                     "channelId": 0,
                     "channelName": "Main",
-                    "status": "online",
+                    "status": "online",   # ⚠️ jamais "en ligne"
                     "movable": False
                 }]
 
             devices.append({
                 "deviceId": d.get("deviceId"),
                 "deviceName": d.get("deviceName"),
-                "deviceStatus": d.get("deviceStatus"),
-                "playToken": d.get("playToken"),
+                "deviceStatus": d.get("deviceStatus"),  # online / offline / sleep
+                "playToken": play_token,
                 "channels": channels
             })
 
@@ -122,6 +126,7 @@ def list_devices():
             "error": "Erreur réseau",
             "details": str(e)
         }), 500
+
 
 
 # GET LIVE URL
