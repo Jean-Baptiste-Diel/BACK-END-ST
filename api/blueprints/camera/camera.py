@@ -121,10 +121,10 @@ def list_devices():
 
         for d in data["result"]["data"].get("deviceList", []):
 
-            # 🔐 Nettoyage du playToken (CRITIQUE)
+            # Nettoyage du playToken (CRITIQUE)
             play_token = (d.get("playToken") or "").replace(" ", "")
 
-            # 📡 Channels
+            #  Channels
             channels = d.get("channels") or []
 
             # Si aucun channel fourni par Imou → on en crée un par défaut
@@ -132,18 +132,19 @@ def list_devices():
                 channels = [{
                     "channelId": 0,
                     "channelName": "Main",
-                    "status": "online",   # ⚠️ jamais "en ligne"
+                    "status": "online",
                     "movable": False
                 }]
 
             devices.append({
                 "deviceId": d.get("deviceId"),
+                "productId": d.get("productId"),
                 "deviceName": d.get("deviceName"),
-                "deviceStatus": d.get("deviceStatus"),  # online / offline / sleep
+                "deviceStatus": d.get("deviceStatus"),
                 "playToken": play_token,
                 "channels": channels
             })
-
+            print(d.get("productId"),)
         return jsonify(devices)
 
     except requests.exceptions.RequestException as e:
