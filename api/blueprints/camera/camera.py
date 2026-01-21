@@ -171,6 +171,58 @@ def list_devices():
 
 # GET permissions
 
+# MOVE CAMERA
+@bp_camera.route('/ptz', methods=['POST'])
+def ptz():
+    data = request.json
+
+    direction = data.get("direction")   # ex: "up", "down", "zoom_in"
+    device_id = data.get("deviceId")
+    channel_id = data.get("channelId", "0")
+    token = data.get("token")
+
+    operation_map = {
+        "up": "0",
+        "down": "1",
+        "left": "2",
+        "right": "3",
+        "up_left": "4",
+        "down_left": "5",
+        "up_right": "6",
+        "down_right": "7",
+        "zoom_in": "8",
+        "zoom_out": "9",
+        "stop": "10"
+    }
+
+    operation = operation_map.get(direction)
+    if operation is None:
+        return jsonify({"error": "Direction invalide"}), 400
+
+    timestamp, nonce, sign = generate_sign()
+
+    body = {
+        "system": {
+            "ver": "1.0",
+            "appId": APP_ID,
+            "sign": sign,
+            "time": timestamp,
+            "nonce": nonce
+        },
+        "id": str(uuid.uuid4()),
+        "params": {
+            "token": token,
+            "deviceId": device_id,
+            "channelId": channel_id,
+            "operation": operation,
+            "duration": "300"
+        }
+    }
+
+    url = f"https://openapi-{DATACENTER}.easy4ip.com/openapi/controlMovePTZ"
+    r = requests.post(url, json=body, timeout=10)
+
+    return jsonify(r.json())
 
 # GET LIVE URL
 @bp_camera.route('/liveurl', methods=['GET'])
