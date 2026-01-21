@@ -45,7 +45,7 @@ def get_token():
             token = data["result"]["data"]["accessToken"]
             raw_domain = data["result"]["data"]["currentDomain"]
 
-            # 🔥 CORRECTION DOMAIN POUR ANDROID SDK
+            # CORRECTION DOMAIN POUR ANDROID SDK
             clean_domain = (
                 raw_domain
                 .replace("https://", "")
@@ -59,7 +59,7 @@ def get_token():
 
             return jsonify({
                 "accessToken": token,
-                "currentDomain": clean_domain,  # ✅ SDK compatible
+                "currentDomain": clean_domain,
                 "timestamp": timestamp,
                 "nonce": nonce,
                 "sign": sign
@@ -84,10 +84,8 @@ def list_devices():
     token_response = get_token()
     if token_response.status_code != 200:
         return token_response
-
     token = token_response.get_json()["accessToken"]
     timestamp, nonce, sign = generate_sign()
-
     body = {
         "system": {
             "ver": "1.0",
@@ -100,59 +98,78 @@ def list_devices():
         "params": {
             "token": token,
             "page": 1,
-            "pageSize": 20,
+            "pageSize": 50,
             "source": "bindAndShare"
         }
     }
-
     url = f"https://openapi-{DATACENTER}.easy4ip.com/openapi/listDeviceDetailsByPage"
-
     try:
         response = requests.post(url, json=body, timeout=10)
         data = response.json()
-
         if data.get("result", {}).get("code") != "0":
             return jsonify({
                 "error": "Impossible de récupérer la liste des devices",
-                "response": data
+                "imouResponse": data
             }), 400
-
         devices = []
-
         for d in data["result"]["data"].get("deviceList", []):
+            device_id = d.get("deviceId")
+            product_id = d.get("productId")
+            device_status = d.get("deviceStatus")
 
-            # Nettoyage du playToken (CRITIQUE)
             play_token = (d.get("playToken") or "").replace(" ", "")
 
-            #  Channels
-            channels = d.get("channels") or []
-
-            # Si aucun channel fourni par Imou → on en crée un par défaut
-            if not channels:
-                channels = [{
-                    "channelId": 0,
-                    "channelName": "Main",
-                    "status": "online",
-                    "movable": False
-                }]
-
+            raw_channels = d.get("channels") or []
+            channels = []
+            if product_id == "SC58X9BD":
+                channels = [
+                    {
+                        "channelId": 0,
+                        "channelName": "Lentille PT",
+                        "status": "online",
+                        "ptz": True
+                    },
+                    {
+                        "channelId": 1,
+                        "channelName": "Objectif fixe",
+                        "status": "online",
+                        "ptz": False
+                    }
+                ]
+            else:
+                if raw_channels:
+                    for c in raw_channels:
+                        channel_id = c.get("channelId", 0)
+                        channels.append({
+                            "channelId": channel_id,
+                            "channelName": c.get("channelName", "Main"),
+                            "status": c.get("status", device_status),
+                            "ptz": channel_id == 0
+                        })
+                else:
+                    # fallback sécurité
+                    channels = [{
+                        "channelId": 0,
+                        "channelName": "Main",
+                        "status": device_status,
+                        "ptz": True
+                    }]
             devices.append({
-                "deviceId": d.get("deviceId"),
-                "productId": d.get("productId"),
+                "deviceId": device_id,
+                "productId": product_id,
                 "deviceName": d.get("deviceName"),
-                "deviceStatus": d.get("deviceStatus"),
+                "deviceStatus": device_status,
                 "playToken": play_token,
                 "channels": channels
             })
-            print(d.get("productId"),)
-        return jsonify(devices)
-
+        return jsonify(devices), 200
     except requests.exceptions.RequestException as e:
         return jsonify({
-            "error": "Erreur réseau",
+            "error": "Erreur réseau Imou",
             "details": str(e)
         }), 500
 
+# GET permissions
 
 
 # GET LIVE URL
