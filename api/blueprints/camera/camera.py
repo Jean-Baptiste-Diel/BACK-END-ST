@@ -174,9 +174,10 @@ def list_devices():
             "details": str(e)
         }), 500
 
-@bp_camera.route('/alarm', methods=['POST'])
+@bp_camera.route('/alarm', methods=['POST', 'GET'])
 def alarm():
     data = request.json
+    current_app.logger.info(f"Donnees recueillies :{data}")
     token_response = get_token()
     token = token_response.get_json()["accessToken"]
     timestamp, nonce, sign = generate_sign()
