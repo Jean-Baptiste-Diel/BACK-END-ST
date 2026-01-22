@@ -21,7 +21,6 @@ def generate_sign():
 @bp_camera.route('/get-token', methods=['GET'])
 def get_token():
     timestamp, nonce, sign = generate_sign()
-
     body = {
         "system": {
             "ver": "1.0",
@@ -169,14 +168,88 @@ def list_devices():
             "details": str(e)
         }), 500
 
-# GET permissions
+@bp_camera.route('/alarm', methods=['POST', 'GET'])
+def alarm():
+    token_response = get_token()
+    token = token_response.get_json()["accessToken"]
+    timestamp, nonce, sign = generate_sign()
+
+    body = {
+        "system": {
+            "ver": "1.0",
+            "appId": APP_ID,
+            "sign": sign,
+            "time": timestamp,
+            "nonce": nonce
+        },
+        "id": str(uuid.uuid4()),
+        "params": {
+            "token": token,
+            "deviceId": "4909BBDPSF5AED4",
+            "channelId": 0,
+            "count": 10,
+            "beginTime": "2026-01-19 00:00:00",
+            "endTime": "2026-01-20 23:59:59",
+            "nextAlarmId": -1
+        }
+    }
+    url = f"https://openapi-{DATACENTER}.easy4ip.com/openapi/getAlarmMessage"
+    headers = {
+        "Content-Type": "application/json"
+    }
+    try:
+        response = requests.post(
+            url,
+            json=body,
+            headers=headers,
+            timeout=10
+        )
+        res_data = response.json()
+        print(res_data)
+
+        if res_data.get("result", {}).get("code") != "0":
+            return jsonify({
+                "error": "Erreur API Imou",
+                "details": res_data.get("result", {}).get("msg"),
+                "raw": res_data
+            }), 400
+        alarms = res_data["result"]["data"]["alarms"]
+        TYPE_MAP = {
+            "1": "MotionDetect",
+            "2": "PIR",
+            "3": "SoundDetect",
+            "6": "HumanDetect",
+            "10": "Intrusion",
+            "11": "LineCross"
+        }
+        result = []
+        for alarm in alarms:
+            result.append({
+                "alarmId": alarm.get("alarmId"),
+                "type": TYPE_MAP.get(alarm.get("type"), "Unknown"),
+                "labelType": alarm.get("labelType"),
+                "time": alarm.get("localDate"),
+                "image": (
+                    alarm.get("picurlArray", [None])[0]
+                    if alarm.get("picurlArray")
+                    else alarm.get("thumbUrl")
+                ),
+                "video": None
+            })
+        return jsonify({"alarms": result})
+
+    except requests.exceptions.RequestException as e:
+        return jsonify({
+            "error": "Erreur réseau",
+            "details": str(e)
+        }), 500
 
 # MOVE CAMERA
 @bp_camera.route('/ptz', methods=['POST'])
 def ptz():
     data = request.json
 
-    direction = data.get("direction")   # ex: "up", "down", "zoom_in"
+    direction = data.get("direction")
     device_id = data.get("deviceId")
     channel_id = data.get("channelId", "0")
     token = data.get("token")
@@ -212,7 +285,7 @@ def ptz():
         "id": str(uuid.uuid4()),
         "params": {
             "token": token,
-            "deviceId": device_id,
+            "deviceId":  device_id,
             "channelId": channel_id,
             "operation": operation,
             "duration": "300"
@@ -223,6 +296,23 @@ def ptz():
     r = requests.post(url, json=body, timeout=10)
 
     return jsonify(r.json())
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # GET LIVE URL
 @bp_camera.route('/liveurl', methods=['GET'])
