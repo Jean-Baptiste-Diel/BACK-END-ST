@@ -2,7 +2,8 @@ import requests
 import time
 import uuid
 import hashlib
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, current_app
+
 bp_camera = Blueprint("camera", __name__)
 
 APP_ID = "lcea5699cd1d7c4457"
@@ -106,6 +107,8 @@ def list_devices():
         response = requests.post(url, json=body, timeout=10)
         data = response.json()
         if data.get("result", {}).get("code") != "0":
+            current_app.logger.warning(f"error :Impossible de récupérer la liste des devices")
+            current_app.logger.info(f"imouResponse: {data}")
             return jsonify({
                 "error": "Impossible de récupérer la liste des devices",
                 "imouResponse": data
@@ -161,19 +164,24 @@ def list_devices():
                 "playToken": play_token,
                 "channels": channels
             })
+        current_app.logger.info(f"Recuperation des cameras")
         return jsonify(devices), 200
     except requests.exceptions.RequestException as e:
+        current_app.logger.warning(f"Erreur réseau Imou")
+        current_app.logger.info(f"details: {str(e)}")
         return jsonify({
             "error": "Erreur réseau Imou",
             "details": str(e)
         }), 500
 
-@bp_camera.route('/alarm', methods=['POST', 'GET'])
+@bp_camera.route('/alarm', methods=['POST'])
 def alarm():
+    data = request.json
     token_response = get_token()
     token = token_response.get_json()["accessToken"]
     timestamp, nonce, sign = generate_sign()
-
+    device_id = data.get("deviceId")
+    channel_id = data.get("channelId", "0")
     body = {
         "system": {
             "ver": "1.0",
@@ -185,8 +193,8 @@ def alarm():
         "id": str(uuid.uuid4()),
         "params": {
             "token": token,
-            "deviceId": "4909BBDPSF5AED4",
-            "channelId": 0,
+            "deviceId": device_id,
+            "channelId": channel_id,
             "count": 10,
             "beginTime": "2026-01-19 00:00:00",
             "endTime": "2026-01-20 23:59:59",
@@ -194,9 +202,7 @@ def alarm():
         }
     }
     url = f"https://openapi-{DATACENTER}.easy4ip.com/openapi/getAlarmMessage"
-    headers = {
-        "Content-Type": "application/json"
-    }
+    headers = { "Content-Type": "application/json" }
     try:
         response = requests.post(
             url,
@@ -205,15 +211,17 @@ def alarm():
             timeout=10
         )
         res_data = response.json()
-        print(res_data)
+        current_app.logger.info(f"Donnees recueillies :{res_data}")
 
         if res_data.get("result", {}).get("code") != "0":
+            current_app.logger.warning(f"Erreur API Imou : {res_data.get('result', {}).get('msg')}")
             return jsonify({
                 "error": "Erreur API Imou",
                 "details": res_data.get("result", {}).get("msg"),
                 "raw": res_data
             }), 400
         alarms = res_data["result"]["data"]["alarms"]
+
         TYPE_MAP = {
             "1": "MotionDetect",
             "2": "PIR",
@@ -222,6 +230,7 @@ def alarm():
             "10": "Intrusion",
             "11": "LineCross"
         }
+
         result = []
         for alarm in alarms:
             result.append({
@@ -236,9 +245,11 @@ def alarm():
                 ),
                 "video": None
             })
-        return jsonify({"alarms": result})
-
+        current_app.logger.info(f"Donnee de retour :{result}")
+        return jsonify({"alarms": result}),200
     except requests.exceptions.RequestException as e:
+        current_app.logger.warning(f"Erreur reseau")
+        current_app.logger.info(f"details: {str(e)}")
         return jsonify({
             "error": "Erreur réseau",
             "details": str(e)
@@ -253,7 +264,7 @@ def ptz():
     device_id = data.get("deviceId")
     channel_id = data.get("channelId", "0")
     token = data.get("token")
-
+    current_app.logger.info(f"Direction envoyer: {direction}")
     operation_map = {
         "up": "0",
         "down": "1",
@@ -270,6 +281,7 @@ def ptz():
 
     operation = operation_map.get(direction)
     if operation is None:
+        current_app.logger.warning(f"Direction invalide: {direction}")
         return jsonify({"error": "Direction invalide"}), 400
 
     timestamp, nonce, sign = generate_sign()
@@ -295,7 +307,7 @@ def ptz():
     url = f"https://openapi-{DATACENTER}.easy4ip.com/openapi/controlMovePTZ"
     r = requests.post(url, json=body, timeout=10)
 
-    return jsonify(r.json())
+    return jsonify(r.json()), 200
 
 
 
