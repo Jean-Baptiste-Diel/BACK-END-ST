@@ -118,6 +118,14 @@ def list_devices():
             device_id = d.get("deviceId")
             product_id = d.get("productId")
             device_status = d.get("deviceStatus")
+            network_type = d.get("networkAccessType")
+            device_ability = d.get("deviceAbility", "")
+
+            is_battery = (
+                    network_type == "SIMCard"
+                    or device_status == "sleep"
+                    or "Dormant" in device_ability
+            )
 
             play_token = (d.get("playToken") or "").replace(" ", "")
 
@@ -161,9 +169,12 @@ def list_devices():
                 "productId": product_id,
                 "deviceName": d.get("deviceName"),
                 "deviceStatus": device_status,
+                "networkAccessType": network_type,
+                "isBattery": is_battery,
                 "playToken": play_token,
                 "channels": channels
             })
+
         current_app.logger.info(f"Recuperation des cameras")
         return jsonify(devices), 200
     except requests.exceptions.RequestException as e:
@@ -174,7 +185,7 @@ def list_devices():
             "details": str(e)
         }), 500
 
-@bp_camera.route('/alarm', methods=['POST', 'GET'])
+@bp_camera.route('/alarm', methods=['POST'])
 def alarm():
     data = request.json
     current_app.logger.info(f"Donnees recueillies :{data}")
@@ -315,7 +326,48 @@ def ptz():
 
 
 
-
+@bp_camera.route('/test', methods=['GET'])
+def test():
+    token_response = get_token()
+    if token_response.status_code != 200:
+        return token_response
+    token = token_response.get_json()["accessToken"]
+    timestamp, nonce, sign = generate_sign()
+    body = {
+        "system": {
+            "ver": "1.0",
+            "appId": APP_ID,
+            "sign": sign,
+            "time": timestamp,
+            "nonce": nonce
+        },
+        "id": str(uuid.uuid4()),
+        "params": {
+            "token": token,
+            "page": 1,
+            "pageSize": 50,
+            "source": "bindAndShare"
+        }
+    }
+    url = f"https://openapi-{DATACENTER}.easy4ip.com/openapi/listDeviceDetailsByPage"
+    try:
+        response = requests.post(url, json=body, timeout=10)
+        data = response.json()
+        if data.get("result", {}).get("code") != "0":
+            current_app.logger.warning(f"error :Impossible de récupérer la liste des devices")
+            current_app.logger.info(f"imouResponse: {data}")
+            return jsonify({
+                "error": "Impossible de récupérer la liste des devices",
+                "imouResponse": data
+            }), 400
+        return jsonify(data), 200
+    except requests.exceptions.RequestException as e:
+        current_app.logger.warning(f"Erreur réseau Imou")
+        current_app.logger.info(f"details: {str(e)}")
+        return jsonify({
+            "error": "Erreur réseau Imou",
+            "details": str(e)
+        }), 500
 
 
 
