@@ -201,10 +201,11 @@ def ptz():
 
 @bp_camera.route('/alarm', methods=['POST'])
 def alarm():
-    data = request.json or {}
+    data = request.get_json(force=True)
+    current_app.logger.info(f"📥 Données reçues : {data}")
 
     device_id = data.get("deviceId")
-    channel_id = data.get("channelId", 0)
+    channel_id = str(data.get("channelId", "0"))  # ⚠️ STRING obligatoire
 
     if not device_id:
         return jsonify({"error": "deviceId manquant"}), 400
@@ -213,13 +214,16 @@ def alarm():
     token, _ = get_imou_token()
     timestamp, nonce, sign = generate_sign()
 
+    # ⏱️ 2 DERNIERS JOURS (FORMAT TEXTE IMOU)
     now = datetime.now()
     two_days_ago = now - timedelta(days=2)
 
-    begin_time = int(two_days_ago.timestamp() * 1000)
-    end_time = int(now.timestamp() * 1000)
+    begin_time = two_days_ago.strftime("%Y-%m-%d %H:%M:%S")
+    end_time = now.strftime("%Y-%m-%d %H:%M:%S")
 
-    url = f"https://openapi-{DATACENTER}.easy4ip.com/openapi/getAlarmMessage"
+    current_app.logger.info(
+        f"⏱️ Période alarmes : {begin_time} → {end_time}"
+    )
 
     body = {
         "system": {
@@ -236,21 +240,29 @@ def alarm():
             "channelId": channel_id,
             "beginTime": begin_time,
             "endTime": end_time,
-            "count": 50,
-            "nextAlarmId": -1
+            "count": 30,
+            "nextAlarmId": "-1"
         }
     }
+    print("donne du body: ",body)
+    url = f"https://openapi-{DATACENTER}.easy4ip.com/openapi/getAlarmMessage"
 
     try:
-        response = requests.post(url, json=body, timeout=8)
+        response = requests.post(url, json=body, timeout=10)
         res_data = response.json()
+        current_app.logger.info(f"📡 Réponse Imou : {res_data}")
+
     except requests.exceptions.RequestException as e:
-        current_app.logger.error(e)
-        return jsonify({"error": "Erreur réseau Imou"}), 503
+        current_app.logger.error(f"❌ Erreur réseau Imou : {e}")
+        return jsonify({
+            "error": "Erreur réseau Imou",
+            "details": str(e)
+        }), 503
 
     if res_data.get("result", {}).get("code") != "0":
         return jsonify({
             "error": "Erreur API Imou",
+            "details": res_data.get("result", {}).get("msg"),
             "raw": res_data
         }), 400
 
@@ -270,6 +282,7 @@ def alarm():
         result.append({
             "alarmId": alarm.get("alarmId"),
             "type": TYPE_MAP.get(alarm.get("type"), "Unknown"),
+            "labelType": alarm.get("labelType"),
             "time": alarm.get("localDate"),
             "image": (
                 alarm.get("picurlArray", [None])[0]
@@ -283,3 +296,5 @@ def alarm():
         "count": len(result),
         "alarms": result
     }), 200
+
+
