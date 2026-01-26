@@ -197,3 +197,88 @@ def ptz():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+# ALARM
+@bp_camera.route('/alarm', methods=['POST'])
+def alarm():
+    data = request.json or {}
+
+    device_id = data.get("deviceId")
+    channel_id = data.get("channelId", "0")
+
+    if not device_id:
+        return jsonify({"error": "deviceId manquant"}), 400
+
+    # token Imou
+    token, _ = get_imou_token()
+
+    timestamp, nonce, sign = generate_sign()
+
+    body = {
+        "system": {
+            "ver": "1.0",
+            "appId": APP_ID,
+            "sign": sign,
+            "time": timestamp,
+            "nonce": nonce
+        },
+        "id": str(uuid.uuid4()),
+        "params": {
+            "token": token,
+            "deviceId": device_id,
+            "channelId": channel_id,
+            "count": 10,
+            "nextAlarmId": -1
+        }
+    }
+
+    url = f"https://openapi-{DATACENTER}.easy4ip.com/openapi/getAlarmMessage"
+
+    try:
+        response = requests.post(url, json=body, timeout=8)
+        res_data = response.json()
+    except requests.exceptions.RequestException as e:
+        current_app.logger.warning(f"Erreur réseau Imou alarm: {e}")
+        return jsonify({
+            "error": "Erreur réseau Imou",
+            "details": str(e)
+        }), 503
+
+    if res_data.get("result", {}).get("code") != "0":
+        return jsonify({
+            "error": "Erreur API Imou",
+            "details": res_data.get("result", {}).get("msg"),
+            "raw": res_data
+        }), 400
+
+    alarms = res_data["result"]["data"].get("alarms", [])
+
+    TYPE_MAP = {
+        "1": "MotionDetect",
+        "2": "PIR",
+        "3": "SoundDetect",
+        "6": "HumanDetect",
+        "10": "Intrusion",
+        "11": "LineCross"
+    }
+
+    result = []
+    for alarm in alarms:
+        result.append({
+            "alarmId": alarm.get("alarmId"),
+            "type": TYPE_MAP.get(alarm.get("type"), "Unknown"),
+            "time": alarm.get("localDate"),
+            "image": (
+                alarm.get("picurlArray", [None])[0]
+                if alarm.get("picurlArray")
+                else alarm.get("thumbUrl")
+            ),
+            "video": alarm.get("videoUrl")
+        })
+
+    return jsonify({
+        "count": len(result),
+        "alarms": result
+    }), 200
+
+
