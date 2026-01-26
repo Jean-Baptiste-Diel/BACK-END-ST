@@ -276,13 +276,20 @@ def alarm():
         "10": "Intrusion",
         "11": "LineCross"
     }
+    LABEL_MAP = {
+        "1": "Human",
+        "2": "Vehicle",
+        "3": "Animal"
+    }
 
     result = []
     for alarm in alarms:
+        label_type = str(alarm.get("labelType"))
+
         result.append({
             "alarmId": alarm.get("alarmId"),
-            "type": TYPE_MAP.get(alarm.get("type"), "Unknown"),
-            "labelType": alarm.get("labelType"),
+            "type": LABEL_MAP.get(label_type, "Unknown"),
+            "eventType": TYPE_MAP.get(str(alarm.get("type")), "Unknown"),
             "time": alarm.get("localDate"),
             "image": (
                 alarm.get("picurlArray", [None])[0]
