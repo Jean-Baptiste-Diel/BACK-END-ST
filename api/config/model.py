@@ -45,3 +45,31 @@ class VerificationCode(db.Model):
         self.code = code
         self.id_user = id_user
         self.expiry = expiry
+
+# Affaire a suivre
+class Alarm(db.Model):
+    __tablename__ = "alarms"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    device_id = db.Column(db.String(64), nullable=False, index=True)
+    channel_id = db.Column(db.String(8), default="0")
+
+    imou_alarm_id = db.Column(db.String(64), unique=True, nullable=False)
+
+    type = db.Column(db.String(32), nullable=False)
+    label_type = db.Column(db.String(32))
+
+    alarm_time = db.Column(db.DateTime, nullable=False, index=True)
+
+    image_url = db.Column(db.Text)
+    video_url = db.Column(db.Text)
+
+    created_at = db.Column(
+        db.DateTime,
+        default=datetime.utcnow,
+        nullable=False
+    )
+
+    def __repr__(self):
+        return f"<Alarm {self.device_id} {self.type} {self.alarm_time}>"

@@ -9,15 +9,11 @@ bp_meteo = Blueprint("meteo", __name__)
 API_KEY = os.environ.get("WEATHER_API_KEY")
 URL = "https://api.openweathermap.org/data/2.5/weather"
 
-# ===============================
-# ⏱️ CACHE MÉTÉO (10 minutes)
-# ===============================
-METEO_CACHE = {}  # { city: {data, expires_at} }
-CACHE_TTL = 600  # secondes
+# CACHE MÉTÉO (10 minutes)
+METEO_CACHE = {}
+CACHE_TTL = 600
 
-# ===============================
-# 🌦️ APPEL OPENWEATHER
-# ===============================
+# APPEL OPENWEATHER
 def get_meteo(city: str):
     if not API_KEY:
         current_app.logger.error("WEATHER_API_KEY manquante")
@@ -27,7 +23,6 @@ def get_meteo(city: str):
 
     city_key = city.lower()
 
-    # ✅ cache
     if city_key in METEO_CACHE:
         cached = METEO_CACHE[city_key]
         if now < cached["expires_at"]:
@@ -61,9 +56,7 @@ def get_meteo(city: str):
 
     return data, 200
 
-# ===============================
-# 🎯 FORMAT JSON POUR FLUTTER
-# ===============================
+# FORMAT JSON POUR FLUTTER
 def return_meteo(city: str):
     data, status = get_meteo(city)
 
@@ -85,9 +78,7 @@ def return_meteo(city: str):
     current_app.logger.info(f"🌦️ Météo récupérée : {city}")
     return jsonify(result), 200
 
-# ===============================
-# 👤 MÉTÉO UTILISATEUR
-# ===============================
+# MÉTÉO UTILISATEUR
 @bp_meteo.route("/meteo", methods=["GET"])
 def meteo_user_by_id():
     user_id = request.args.get("id_user")
@@ -107,16 +98,12 @@ def meteo_user_by_id():
 
     return return_meteo(user.location)
 
-# ===============================
-# 🌍 MÉTÉO PAR VILLE
-# ===============================
+# MÉTÉO PAR VILLE
 @bp_meteo.route("/meteo/<string:location>", methods=["GET"])
 def meteo_location(location: str):
     return return_meteo(location)
 
-# ===============================
-# 🇸🇳 DEFAULT (DAKAR)
-# ===============================
+#  DEFAULT (DAKAR)
 @bp_meteo.route("/meteos", methods=["GET"])
 def meteos_locations():
     return return_meteo("Dakar")
