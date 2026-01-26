@@ -10,18 +10,14 @@ APP_ID = "lcea5699cd1d7c4457"
 APP_SECRET = "f464f4b27e934bcba36125d953a4c6"
 DATACENTER = "fk"
 
-# ===============================
-# 🔐 CACHE TOKEN IMOU
-# ===============================
+# CACHE TOKEN IMOU
 IMOU_TOKEN_CACHE = {
     "accessToken": None,
     "domain": None,
     "expires_at": 0
 }
 
-# ===============================
-# 🔧 SIGN
-# ===============================
+# SIGN
 def generate_sign():
     timestamp = int(time.time())
     nonce = str(uuid.uuid4())
@@ -29,9 +25,7 @@ def generate_sign():
     sign = hashlib.md5(raw.encode()).hexdigest()
     return timestamp, nonce, sign
 
-# ===============================
-# 🔐 TOKEN INTERNE (UTILITAIRE)
-# ===============================
+# TOKEN INTERNE (UTILITAIRE)
 def get_imou_token():
     now = int(time.time())
 
@@ -82,9 +76,7 @@ def get_imou_token():
 
     return token, domain
 
-# ===============================
-# 🔐 ROUTE TOKEN (POUR FLUTTER)
-# ===============================
+# ROUTE TOKEN (POUR FLUTTER)
 @bp_camera.route("/get-token", methods=["GET"])
 def get_token_route():
     try:
@@ -96,9 +88,7 @@ def get_token_route():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# ===============================
-# 📷 LIST DEVICES
-# ===============================
+# LIST DEVICES
 @bp_camera.route("/devices", methods=["GET"])
 def list_devices():
     try:
@@ -162,9 +152,7 @@ def list_devices():
         current_app.logger.exception(e)
         return jsonify({"error": "Erreur serveur"}), 500
 
-# ===============================
-# 🎮 PTZ
-# ===============================
+# PTZ
 @bp_camera.route("/ptz", methods=["POST"])
 def ptz():
     try:
