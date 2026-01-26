@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 import requests
 import time
 import uuid
@@ -198,21 +199,28 @@ def ptz():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# ALARM
 @bp_camera.route('/alarm', methods=['POST'])
 def alarm():
     data = request.json or {}
 
     device_id = data.get("deviceId")
-    channel_id = data.get("channelId", "0")
+    channel_id = data.get("channelId", 0)
 
     if not device_id:
         return jsonify({"error": "deviceId manquant"}), 400
 
-    # token Imou
+    # 🔐 Token Imou
     token, _ = get_imou_token()
-
     timestamp, nonce, sign = generate_sign()
+
+    # ⏱️ Période : 2 derniers jours
+    now = datetime.now()
+    two_days_ago = now - datetime.timedelta(days=2)
+
+    begin_time = int(two_days_ago.timestamp() * 1000)
+    end_time = int(now.timestamp() * 1000)
+
+    url = f"https://openapi-{DATACENTER}.easy4ip.com/openapi/getAlarmMessage"
 
     body = {
         "system": {
@@ -227,37 +235,33 @@ def alarm():
             "token": token,
             "deviceId": device_id,
             "channelId": channel_id,
-            "count": 10,
+            "beginTime": begin_time,
+            "endTime": end_time,
+            "count": 50,
             "nextAlarmId": -1
         }
     }
-
-    url = f"https://openapi-{DATACENTER}.easy4ip.com/openapi/getAlarmMessage"
 
     try:
         response = requests.post(url, json=body, timeout=8)
         res_data = response.json()
     except requests.exceptions.RequestException as e:
-        current_app.logger.warning(f"Erreur réseau Imou alarm: {e}")
-        return jsonify({
-            "error": "Erreur réseau Imou",
-            "details": str(e)
-        }), 503
+        current_app.logger.error(e)
+        return jsonify({"error": "Erreur réseau Imou"}), 503
 
     if res_data.get("result", {}).get("code") != "0":
         return jsonify({
             "error": "Erreur API Imou",
-            "details": res_data.get("result", {}).get("msg"),
             "raw": res_data
         }), 400
 
     alarms = res_data["result"]["data"].get("alarms", [])
 
     TYPE_MAP = {
-        "1": "MotionDetect",
+        "1": "Motion",
         "2": "PIR",
-        "3": "SoundDetect",
-        "6": "HumanDetect",
+        "3": "Sound",
+        "6": "Human",
         "10": "Intrusion",
         "11": "LineCross"
     }
@@ -280,5 +284,3 @@ def alarm():
         "count": len(result),
         "alarms": result
     }), 200
-
-
