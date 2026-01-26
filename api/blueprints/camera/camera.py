@@ -213,9 +213,8 @@ def alarm():
     token, _ = get_imou_token()
     timestamp, nonce, sign = generate_sign()
 
-    # ⏱️ Période : 2 derniers jours
     now = datetime.now()
-    two_days_ago = now - datetime.timedelta(days=2)
+    two_days_ago = now - timedelta(days=2)
 
     begin_time = int(two_days_ago.timestamp() * 1000)
     end_time = int(now.timestamp() * 1000)
