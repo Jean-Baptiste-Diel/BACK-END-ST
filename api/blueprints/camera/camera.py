@@ -304,7 +304,7 @@ def alarm():
         else:
             alarm_type = ALARM_TYPE_MAP.get(
                 int(alarm_type_code) if alarm_type_code is not None else -1,
-                "Unknown"
+                "Alarme inconnue"
             )
         image_url = None
         if isinstance(alarm.get("picurlArray"), list) and alarm["picurlArray"]:
