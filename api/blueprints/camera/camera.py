@@ -73,7 +73,7 @@ def get_imou_token():
         "expires_at": now + expire - 60
     })
 
-    current_app.logger.info("🔐 Nouveau token Imou")
+    current_app.logger.info("Nouveau token Imou")
 
     return token, domain
 
@@ -202,19 +202,19 @@ def ptz():
 @bp_camera.route('/alarm', methods=['POST'])
 def alarm():
     data = request.get_json(force=True)
-    current_app.logger.info(f"📥 Données reçues : {data}")
+    current_app.logger.info(f" Données reçues : {data}")
 
     device_id = data.get("deviceId")
-    channel_id = str(data.get("channelId", "0"))  # ⚠️ STRING obligatoire
+    channel_id = str(data.get("channelId", "0"))
 
     if not device_id:
         return jsonify({"error": "deviceId manquant"}), 400
 
-    # 🔐 Token Imou
+    # Token Imou
     token, _ = get_imou_token()
     timestamp, nonce, sign = generate_sign()
 
-    # ⏱️ 2 DERNIERS JOURS (FORMAT TEXTE IMOU)
+    # 2 DERNIERS JOURS
     now = datetime.now()
     two_days_ago = now - timedelta(days=2)
 
@@ -222,7 +222,7 @@ def alarm():
     end_time = now.strftime("%Y-%m-%d %H:%M:%S")
 
     current_app.logger.info(
-        f"⏱️ Période alarmes : {begin_time} → {end_time}"
+        f"Période alarmes : {begin_time} → {end_time}"
     )
 
     body = {
@@ -250,10 +250,10 @@ def alarm():
     try:
         response = requests.post(url, json=body, timeout=10)
         res_data = response.json()
-        current_app.logger.info(f"📡 Réponse Imou : {res_data}")
+        current_app.logger.info(f"Réponse Imou : {res_data}")
 
     except requests.exceptions.RequestException as e:
-        current_app.logger.error(f"❌ Erreur réseau Imou : {e}")
+        current_app.logger.error(f" Erreur réseau Imou : {e}")
         return jsonify({
             "error": "Erreur réseau Imou",
             "details": str(e)
@@ -267,29 +267,30 @@ def alarm():
         }), 400
 
     alarms = res_data["result"]["data"].get("alarms", [])
-
-    TYPE_MAP = {
-        "1": "Motion",
-        "2": "PIR",
-        "3": "Sound",
-        "6": "Human",
-        "10": "Intrusion",
-        "11": "LineCross"
+    print("alarmes: ",alarms)
+    MSG_TYPE_MAP = {
+        "human": "Human",
+        "vehicle": "Vehicle",
+        "animal": "Animal",
+        "motion": "Motion",
+        "sound": "Sound"
     }
+
     LABEL_MAP = {
-        "1": "Human",
-        "2": "Vehicle",
-        "3": "Animal"
+        "humanalarm": "Human",
+        "vehiclealarm": "Vehicle",
+        "animalalarm": "Animal"
     }
 
     result = []
     for alarm in alarms:
-        label_type = str(alarm.get("labelType"))
+        msg_type = alarm.get("msgType", "").lower()
+        label_raw = alarm.get("labelType", "").lower()
 
         result.append({
             "alarmId": alarm.get("alarmId"),
-            "type": LABEL_MAP.get(label_type, "Unknown"),
-            "eventType": TYPE_MAP.get(str(alarm.get("type")), "Unknown"),
+            "type": LABEL_MAP.get(label_raw, MSG_TYPE_MAP.get(msg_type, "Unknown")),
+            "eventType": MSG_TYPE_MAP.get(msg_type, "Unknown"),
             "time": alarm.get("localDate"),
             "image": (
                 alarm.get("picurlArray", [None])[0]
