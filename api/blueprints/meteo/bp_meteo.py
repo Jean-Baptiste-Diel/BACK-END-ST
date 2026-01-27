@@ -13,6 +13,29 @@ URL = "https://api.openweathermap.org/data/2.5/weather"
 METEO_CACHE = {}
 CACHE_TTL = 600
 
+# LOGIQUE IRRIGATION
+def compute_irrigation(temp, humidity, wind, rain):
+    gravite = 1
+    message = "Conditions normales : Vous pouvez irriguer normalement."
+
+    if rain >= 5:
+        gravite = 2
+        message = "Pluie récente : irrigation réduite recommandée."
+    if rain >= 20:
+        gravite = 3
+        message = "Pluie abondante : irrigation non nécessaire."
+    if wind >= 8:
+        gravite = max(gravite, 2)
+        message = "Vent fort : éviter l'irrigation prolongée."
+    if humidity >= 85:
+        gravite = max(gravite, 2)
+        message = "Humidité élevée : irrigation limitée."
+    if rain >= 20 and humidity >= 85:
+        gravite = 3
+        message = "Sol saturé : irrigation arrêtée."
+
+    return gravite, message
+
 # APPEL OPENWEATHER
 def get_meteo(city: str):
     if not API_KEY:
@@ -20,16 +43,16 @@ def get_meteo(city: str):
         return None, 500
 
     now = int(time.time())
-
     city_key = city.lower()
 
+    # Cache
     if city_key in METEO_CACHE:
         cached = METEO_CACHE[city_key]
         if now < cached["expires_at"]:
             return cached["data"], 200
 
     params = {
-        "q": city,
+        "q": city.strip(),
         "appid": API_KEY,
         "units": "metric",
         "lang": "fr"
@@ -56,29 +79,56 @@ def get_meteo(city: str):
 
     return data, 200
 
-# FORMAT JSON POUR FLUTTER
+# FORMAT MÉTÉO POUR FLUTTER
 def return_meteo(city: str):
     data, status = get_meteo(city)
 
     if data is None:
         return jsonify({
             "error": "Impossible de récupérer la météo",
-            "city": city
+            "ville": city
         }), status
+
+    wind = data.get("wind", {}) or {}
+    rain = data.get("rain", {}) or {}
+
+    vent_ms = float(wind.get("speed") or 0.0)
+
+    pluie_mm = rain.get("1h")
+    if pluie_mm is None:
+        pluie_mm = rain.get("3h")
+    pluie_mm = float(pluie_mm or 0.0)
+
+    temp = float(data["main"]["temp"])
+    humidity = int(data["main"]["humidity"])
+
+    # Calcul irrigation
+    gravite, message_irrigation = compute_irrigation(
+        temp=temp,
+        humidity=humidity,
+        wind=vent_ms,
+        rain=pluie_mm
+    )
 
     result = {
         "ville": data.get("name"),
-        "temperature": data["main"]["temp"],
-        "description": data["weather"][0]["description"],
-        "humidite": data["main"]["humidity"],
+        "temperature": round(temp, 1),
+        "description": data["weather"][0]["description"].capitalize(),
+        "humidite": humidity,
         "pression": data["main"]["pressure"],
-        "icone": data["weather"][0]["icon"]
+        "icone": data["weather"][0]["icon"],
+        "vent": round(vent_ms, 1),
+        "pluie": round(pluie_mm, 1),
+
+        # Irrigation intelligente
+        "gravite": gravite,
+        "message_irrigation": message_irrigation
     }
 
     current_app.logger.info(f"🌦️ Météo récupérée : {city}")
     return jsonify(result), 200
 
-# MÉTÉO UTILISATEUR
+# MÉTÉO PAR UTILISATEUR
 @bp_meteo.route("/meteo", methods=["GET"])
 def meteo_user_by_id():
     user_id = request.args.get("id_user")
@@ -103,7 +153,7 @@ def meteo_user_by_id():
 def meteo_location(location: str):
     return return_meteo(location)
 
-#  DEFAULT (DAKAR)
+# MÉTÉO PAR DÉFAUT (TEST)
 @bp_meteo.route("/meteos", methods=["GET"])
 def meteos_locations():
     return return_meteo("Dakar")
