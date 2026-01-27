@@ -268,12 +268,20 @@ def alarm():
 
     alarms = res_data["result"]["data"].get("alarms", [])
     print("alarmes: ",alarms)
-    MSG_TYPE_MAP = {
-        "human": "Human",
-        "vehicle": "Vehicle",
-        "animal": "Animal",
-        "motion": "Motion",
-        "sound": "Sound"
+    ALARM_TYPE_MAP = {
+        0: "HumanInfrared",
+        1: "Motion",
+        2: "Unknown",
+        3: "LowVoltage",
+        4: "AccessoryHuman",
+        5: "SensorMovement",
+        6: "LongMovement",
+        7: "AccessoryInfrared",
+        8: "DoorSensor",
+        90: "GatewayDoorSensor",
+        91: "GatewayInfrared",
+        92: "GatewayLowBattery",
+        93: "GatewayTamper"
     }
 
     LABEL_MAP = {
@@ -282,21 +290,34 @@ def alarm():
         "animalalarm": "Animal"
     }
 
+    print("alarmes:", alarms)
+
     result = []
+
     for alarm in alarms:
-        msg_type = alarm.get("msgType", "").lower()
-        label_raw = alarm.get("labelType", "").lower()
+        # Champs Imou
+        alarm_type_code = alarm.get("type")
+        label_raw = (alarm.get("labelType") or "").lower()
+
+        if label_raw in LABEL_MAP:
+            alarm_type = LABEL_MAP[label_raw]
+        else:
+            alarm_type = ALARM_TYPE_MAP.get(
+                int(alarm_type_code) if alarm_type_code is not None else -1,
+                "Unknown"
+            )
+        image_url = None
+        if isinstance(alarm.get("picurlArray"), list) and alarm["picurlArray"]:
+            image_url = alarm["picurlArray"][0]
+        elif alarm.get("thumbUrl"):
+            image_url = alarm.get("thumbUrl")
 
         result.append({
             "alarmId": alarm.get("alarmId"),
-            "type": LABEL_MAP.get(label_raw, MSG_TYPE_MAP.get(msg_type, "Unknown")),
-            "eventType": MSG_TYPE_MAP.get(msg_type, "Unknown"),
+            "type": alarm_type,
+            "eventType": alarm_type,
             "time": alarm.get("localDate"),
-            "image": (
-                alarm.get("picurlArray", [None])[0]
-                if alarm.get("picurlArray")
-                else alarm.get("thumbUrl")
-            ),
+            "image": image_url or "",
             "video": alarm.get("videoUrl")
         })
 
