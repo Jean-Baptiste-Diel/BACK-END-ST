@@ -22,6 +22,10 @@ def create_app(test_config=None):
     db.init_app(app=app)
     register_routes(app)
 
+    @app.route("/ping")
+    def ping():
+        return "ok", 200
+
     if test_config is not None:
         app.config.update(test_config)
 
