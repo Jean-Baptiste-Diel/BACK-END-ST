@@ -125,7 +125,7 @@ def return_meteo(city: str):
         "message_irrigation": message_irrigation
     }
 
-    current_app.logger.info(f"🌦️ Météo récupérée : {city}")
+    current_app.logger.info(f"Météo récupérée : {city}")
     return jsonify(result), 200
 
 # MÉTÉO PAR UTILISATEUR
