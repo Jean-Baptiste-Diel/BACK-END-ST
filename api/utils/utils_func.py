@@ -1,7 +1,11 @@
+import os
 import secrets
 import base64
 import re
+import uuid
 from datetime import timedelta, datetime
+
+import requests
 from flask import current_app
 from flask_jwt_extended import create_access_token
 from typing import Any, Optional, Union
@@ -11,8 +15,13 @@ from flask import render_template
 
 from flask_mail import Message
 from api.extension.mail_sms import mail
+from api.utils.token import generate_sign, get_imou_token
 
 SIMPLE_RE = re.compile(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$")
+
+APP_ID = os.environ.get("APP_ID")
+APP_SECRET = os.environ.get("APP_SECRET")
+DATA_CENTER = os.environ.get("DATACENTER")
 
 def is_valid_mail_format(mail: str) -> bool:
     """Check if the email is in valid format."""
@@ -161,3 +170,28 @@ def send_verification_code(code: int, field_value:str, value: Any):
     except CheckError as err:
         current_app.logger.error(str(err))
         raise CheckError(str(err), 400)
+
+# UTILITAIRE POUR APPEL IMOU
+def call_imou_api(endpoint: str, params: dict, timeout: int = 10):
+    """
+    Fonction générique pour appeler l'API Imou.
+    Ajoute automatiquement le token et les paramètres système.
+    """
+    token, _ = get_imou_token()
+    timestamp, nonce, sign = generate_sign()
+
+    body = {
+        "system": {
+            "ver": "1.0",
+            "appId": APP_ID,
+            "sign": sign,
+            "time": timestamp,
+            "nonce": nonce
+        },
+        "id": str(uuid.uuid4()),
+        "params": {**params, "token": token}
+    }
+
+    url = f"https://openapi-{DATA_CENTER}.easy4ip.com/openapi/{endpoint}"
+    response = requests.post(url, json=body, timeout=timeout)
+    return response.json()
