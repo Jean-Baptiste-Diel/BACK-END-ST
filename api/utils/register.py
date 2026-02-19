@@ -1,6 +1,7 @@
 from api.blueprints.auth.forgot_password import forgot_password_bp
 from api.blueprints.camera.camera import camera_bp
 from api.blueprints.camera.alarme import alarme_bp
+from api.blueprints.camera.network import network_bp
 from api.blueprints.camera.operation import operate_bp
 from api.blueprints.camera.detection_mouvement import detection_bp
 from api.blueprints.camera.storage import storage_bp
@@ -15,6 +16,7 @@ BLUEPRINTS = [
     login_bp,
     camera_bp,
     video_bp,
+    network_bp,
     operate_bp,
     bp_meteo,
     alarme_bp,
