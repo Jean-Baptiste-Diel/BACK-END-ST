@@ -13,41 +13,75 @@ def get_token_route():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# LISTE DES CAMÉRAS
+from flask import Blueprint, jsonify, current_app
+from api.utils.token import get_imou_token
+from api.utils.utils_func import call_imou_api
+
+camera_bp = Blueprint("camera", __name__)
+
+# LISTE DEVICES
 @camera_bp.route("/devices", methods=["GET"])
-def list_devices():
+def list_all_devices():
     try:
-        response_data = call_imou_api("listDeviceDetailsByPage", {
-            "page": 1,
-            "pageSize": 50,
-            "source": "bindAndShare"
-        }, timeout=10)
+        page = 1
+        page_size = 1
+        all_devices = []
 
-        if response_data.get("result", {}).get("code") != "0":
-            return jsonify(response_data), 400
+        while True:
+            response_data = call_imou_api(
+                "listDeviceDetailsByPage",
+                {"page": page, "pageSize": page_size, "source": "bindAndShare"},
+                timeout=10
+            )
 
-        devices = []
-        for d in response_data["result"]["data"]["deviceList"]:
-            channels = [
-                {
-                    "channelId": c.get("channelId", 0),
-                    "channelName": c.get("channelName", "Main"),
-                    "status": c.get("status"),
-                    "ptz": c.get("channelId") == 0
-                }
-                for c in (d.get("channels") or [])
-            ] or [{"channelId": 0, "channelName": "Main", "status": d.get("deviceStatus"), "ptz": True}]
+            # Vérification du code Imou
+            if response_data.get("result", {}).get("code") != "0":
+                return jsonify(response_data), 400
 
-            devices.append({
-                "deviceId": d["deviceId"],
-                "deviceName": d["deviceName"],
-                "productId": d["productId"],
-                "deviceStatus": d["deviceStatus"],
-                "playToken": (d.get("playToken") or "").replace(" ", ""),
-                "channels": channels
-            })
+            device_list = response_data["result"]["data"].get("deviceList", [])
+            if not device_list:
+                break  # Plus de caméras à récupérer
 
-        return jsonify(devices), 200
+            for d in device_list:
+                channels_data = d.get("channels") or []
+
+                channels = []
+                if channels_data:
+                    for c in channels_data:
+                        channels.append({
+                            "channelId": c.get("channelId", 0),
+                            "channelName": c.get("channelName", "Main"),
+                            "status": c.get("status", "unknown"),
+                            "ptz": c.get("ptz") or False
+                        })
+                else:
+                    # Si pas de canal, créer un canal principal par défaut
+                    channels.append({
+                        "channelId": 0,
+                        "channelName": "Main",
+                        "status": d.get("deviceStatus", "unknown"),
+                        "ptz": "PTZ" in (d.get("deviceAbility") or "")
+                    })
+
+                all_devices.append({
+                    "deviceId": d.get("deviceId"),
+                    "deviceName": d.get("deviceName"),
+                    "productId": d.get("productId"),
+                    "deviceStatus": d.get("deviceStatus"),
+                    "deviceModel": d.get("deviceModel"),
+                    "deviceAbility": d.get("deviceAbility"),
+                    "playToken": (d.get("playToken") or "").replace(" ", ""),
+                    "channels": channels,
+                    "upgradeInfo": d.get("upgradeInfo"),
+                    "brand": d.get("brand")
+                })
+
+            # Si moins que page_size, c'est la dernière page
+            if len(device_list) < page_size:
+                break
+            page += 1
+
+        return jsonify(all_devices), 200
 
     except Exception as e:
         current_app.logger.exception(e)

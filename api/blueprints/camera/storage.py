@@ -7,9 +7,9 @@ erreur_deviceId = "deviceId requis"
 # Vérifier l'état de la carte SD
 @storage_bp.route("/camera/sdcard-status", methods=["GET"])
 def get_sdcard_status():
-    """
-    device pour tester device_id = "A449DAKPSFE823B"
-    """
+    #device pour tester
+    #device_id = "A449DAKPSFE823B"
+
     device_id = request.args.get("deviceId")
     channel_id = request.args.get("channelId", "0")
 
@@ -39,6 +39,8 @@ def get_sdcard_status():
 # Obtenir les informations de stockage
 @storage_bp.route("/camera/storage-info", methods=["GET"])
 def get_storage_info():
+    #device_id = "A449DAKPSFE823B"
+
     device_id = request.args.get("deviceId")
     channel_id = request.args.get("channelId", "0")
 
