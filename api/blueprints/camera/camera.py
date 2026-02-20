@@ -13,12 +13,6 @@ def get_token_route():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-from flask import Blueprint, jsonify, current_app
-from api.utils.token import get_imou_token
-from api.utils.utils_func import call_imou_api
-
-camera_bp = Blueprint("camera", __name__)
-
 # LISTE DEVICES
 @camera_bp.route("/devices", methods=["GET"])
 def list_all_devices():
