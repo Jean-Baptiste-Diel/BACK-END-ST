@@ -74,6 +74,7 @@ def alarm():
 
         alarms_brutes = response_data["result"]["data"].get("alarms", [])
         result = [formater_alarme(a) for a in alarms_brutes]
+        current_app.logger.info(f"Alarme récupérée : {result}")
 
         return jsonify({"count": len(result), "alarms": result}), 200
 
