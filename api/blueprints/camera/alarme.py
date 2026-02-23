@@ -12,7 +12,7 @@ def alarm():
     data = request.get_json(force=True)
     current_app.logger.info(f"Données reçues : {data}")
 
-    device_id = data.get("deviceId")
+    device_id = "4909BBDPSF5AED4"#data.get("deviceId")
     channel_id = str(data.get("channelId", "0"))
 
     if not device_id:
@@ -74,6 +74,7 @@ def alarm():
 
         alarms_brutes = response_data["result"]["data"].get("alarms", [])
         result = [formater_alarme(a) for a in alarms_brutes]
+        current_app.logger.info(f"Alarme récupérée : {result}")
 
         return jsonify({"count": len(result), "alarms": result}), 200
 
@@ -88,7 +89,7 @@ def alarm():
 # RÉCUPÉRER LES ALARMES SUR LA CARDSD
 @alarme_bp.route("/camera/alarms", methods=["GET"])
 def get_camera_alarms():
-    device_id = request.args.get("deviceId")
+    device_id = "A449DAKPSFAAC72" #request.args.get("deviceId")
     channel_id = request.args.get("channelId", "0")
     count = int(request.args.get("count", 30))
     next_alarm_id = request.args.get("nextAlarmId", "-1")
