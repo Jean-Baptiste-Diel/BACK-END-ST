@@ -9,6 +9,7 @@ def get_camera_motion_status():
     """
         device pour tester device_id = "A449DAKPSFE823B"
     """
+
     device_id = request.args.get("deviceId")
     channel_id = request.args.get("channelId", "0")
 
