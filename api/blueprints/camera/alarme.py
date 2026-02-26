@@ -8,17 +8,16 @@ alarme_bp = Blueprint("alarm", __name__)
 # ROUTE POUR RÉCUPÉRER LES ALARMES
 @alarme_bp.route('/alarm', methods=['POST'])
 def alarm():
-    """Récupère les alarmes des 2 derniers jours pour une caméra Imou."""
+    """Récupère toutes les alarmes pour une caméra Imou sur 2 jours."""
     data = request.get_json(force=True)
     current_app.logger.info(f"Données reçues : {data}")
 
-    device_id = "4909BBDPSF5AED4"#data.get("deviceId")
+    device_id = data.get("deviceId")
     channel_id = str(data.get("channelId", "0"))
 
     if not device_id:
         return jsonify({"error": "deviceId manquant"}), 400
 
-    # Définir la période (2 derniers jours)
     now = datetime.now()
     begin_time = (now - timedelta(days=2)).strftime("%Y-%m-%d %H:%M:%S")
     end_time = now.strftime("%Y-%m-%d %H:%M:%S")
@@ -46,37 +45,56 @@ def alarm():
         elif a.get("thumbUrl"):
             image = a.get("thumbUrl")
 
+        current_app.logger.info(
+            f"Alarme brute: alarmId={a.get('alarmId')}, type={type_alarme}, "
+            f"labelType={a.get('labelType')}, pics={pics}, thumbUrl={a.get('thumbUrl')}, "
+            f"videoUrl={a.get('videoUrl')}, time={a.get('localDate')}"
+        )
+
         return {
             "alarmId": a.get("alarmId"),
             "type": type_alarme,
             "eventType": type_alarme,
             "time": a.get("localDate"),
             "image": image,
-            "video": a.get("videoUrl")
         }
 
     try:
-        response_data = call_imou_api("getAlarmMessage", {
-            "deviceId": device_id,
-            "channelId": channel_id,
-            "beginTime": begin_time,
-            "endTime": end_time,
-            "count": 30,
-            "nextAlarmId": "-1"
-        })
+        all_alarms = []
+        next_alarm_id = "-1"
+        count_per_call = 50
 
-        if response_data.get("result", {}).get("code") != "0":
-            return jsonify({
-                "error": "Erreur API Imou",
-                "details": response_data.get("result", {}).get("msg"),
-                "raw": response_data
-            }), 400
+        while True:
+            response_data = call_imou_api("getAlarmMessage", {
+                "deviceId": device_id,
+                "channelId": channel_id,
+                "beginTime": begin_time,
+                "endTime": end_time,
+                "count": count_per_call,
+                "nextAlarmId": next_alarm_id
+            })
 
-        alarms_brutes = response_data["result"]["data"].get("alarms", [])
-        result = [formater_alarme(a) for a in alarms_brutes]
-        current_app.logger.info(f"Alarme récupérée : {result}")
+            current_app.logger.info(f"Données brutes API Imou : {response_data}")
 
-        return jsonify({"count": len(result), "alarms": result}), 200
+            if response_data.get("result", {}).get("code") != "0":
+                return jsonify({
+                    "error": "Erreur API Imou",
+                    "details": response_data.get("result", {}).get("msg"),
+                    "raw": response_data
+                }), 400
+
+            alarms_brutes = response_data["result"]["data"].get("alarms", [])
+            if not alarms_brutes:
+                break
+
+            all_alarms.extend([formater_alarme(a) for a in alarms_brutes])
+
+            next_alarm_id = str(response_data["result"]["data"].get("nextAlarmId", "-1"))
+            if next_alarm_id == "-1":
+                break
+
+        current_app.logger.info(f"Nombre total d'alarmes récupérées : {len(all_alarms)}")
+        return jsonify({"count": len(all_alarms), "alarms": all_alarms}), 200
 
     except requests.exceptions.RequestException as e:
         current_app.logger.error(f"Erreur réseau Imou : {e}")
@@ -174,4 +192,130 @@ def delete_camera_alarms():
 
     except Exception as e:
         current_app.logger.error(f"Erreur delete alarms : {e}")
+        return jsonify({"error": str(e)}), 500
+
+# RÉCUPÉRER LES VIDÉOS CLOUD
+@alarme_bp.route("/camera/cloud/videos", methods=["GET"])
+def get_cloud_videos():
+    device_id = request.args.get("deviceId", "A449DAKPSFAAC72")
+    channel_id = request.args.get("channelId", "0")
+    count = int(request.args.get("count", 10))
+
+    if not device_id:
+        return jsonify({"error": "deviceId requis"}), 400
+
+    now = datetime.now()
+    begin_time = request.args.get(
+        "beginTime",
+        (now - timedelta(days=2)).strftime("%Y-%m-%d %H:%M:%S")
+    )
+    end_time = request.args.get(
+        "endTime",
+        now.strftime("%Y-%m-%d %H:%M:%S")
+    )
+
+    try:
+        response = call_imou_api("getCloudRecords", {
+            "deviceId": device_id,
+            "channelId": channel_id,
+            "beginTime": begin_time,
+            "endTime": end_time,
+            "count": count
+        })
+
+        if response.get("result", {}).get("code") != "0":
+            return jsonify({
+                "error": "Erreur récupération vidéos cloud",
+                "details": response
+            }), 500
+
+        records = response["result"]["data"].get("records", [])
+
+        videos = []
+        for r in records:
+            videos.append({
+                "recordId": r.get("recordId"),
+                "beginTime": r.get("beginTime"),
+                "endTime": r.get("endTime"),
+                "duration": r.get("duration"),
+                "thumbUrl": r.get("thumbUrl"),
+                "videoUrl": r.get("playUrl")  # URL lecture directe
+            })
+
+        return jsonify({
+            "deviceId": device_id,
+            "count": len(videos),
+            "videos": videos
+        }), 200
+
+    except Exception as e:
+        current_app.logger.error(f"Erreur cloud videos : {e}")
+        return jsonify({"error": str(e)}), 500
+
+# LIRE UNE VIDÉO CLOUD PAR recordId
+@alarme_bp.route("/camera/cloud/video/<record_id>", methods=["GET"])
+def play_cloud_video(record_id):
+    device_id = request.args.get("deviceId", "A449DAKPSFAAC72")
+    channel_id = request.args.get("channelId", "0")
+
+    try:
+        response = call_imou_api("queryCloudRecords", {
+            "deviceId": device_id,
+            "channelId": channel_id,
+            "beginTime": "2020-01-01 00:00:00",
+            "endTime": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "queryRange": "1-100"
+        })
+
+        if response.get("result", {}).get("code") != "0":
+            return jsonify({"error": "Erreur API Imou"}), 500
+
+        records = response["result"]["data"].get("records", [])
+
+        for r in records:
+            if r.get("recordId") == record_id:
+                return jsonify({
+                    "recordId": record_id,
+                    "videoUrl": r.get("playUrl"),
+                    "thumbUrl": r.get("thumbUrl"),
+                    "beginTime": r.get("beginTime"),
+                    "endTime": r.get("endTime")
+                }), 200
+
+        return jsonify({"error": "Vidéo non trouvée"}), 404
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# LIRE UNE VIDÉO DE LA CARTE SD
+@alarme_bp.route("/camera/sd/video", methods=["GET"])
+def play_sd_video():
+    device_id = request.args.get("deviceId", "A449DAKPSFAAC72")
+    channel_id = request.args.get("channelId", "0")
+
+    if not device_id:
+        return jsonify({"error": "deviceId requis"}), 400
+
+    try:
+        response = call_imou_api("playRecordFile", {
+            "deviceId": device_id,
+            "channelId": channel_id,
+            "recordId": "1171990094824122400"
+        })
+
+        if response.get("result", {}).get("code") != "0":
+            return jsonify({
+                "error": "Erreur lecture vidéo SD",
+                "details": response
+            }), 500
+
+        play_url = response["result"]["data"].get("playUrl")
+
+        return jsonify({
+            "recordId": "1171990094824122400",
+            "videoUrl": play_url
+        }), 200
+
+    except Exception as e:
+        current_app.logger.error(f"Erreur play SD video : {e}")
         return jsonify({"error": str(e)}), 500
