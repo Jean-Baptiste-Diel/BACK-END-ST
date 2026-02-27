@@ -48,7 +48,6 @@ def alarm():
         current_app.logger.info(
             f"Alarme brute: alarmId={a.get('alarmId')}, type={type_alarme}, "
             f"labelType={a.get('labelType')}, pics={pics}, thumbUrl={a.get('thumbUrl')}, "
-            f"videoUrl={a.get('videoUrl')}, time={a.get('localDate')}"
         )
 
         return {

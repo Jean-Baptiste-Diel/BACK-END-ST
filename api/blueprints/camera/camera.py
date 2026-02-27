@@ -18,8 +18,8 @@ def get_token_route():
 def list_all_devices():
     try:
         page = 1
-        page_size = 1
-        all_devices = []
+        page_size = 20
+        all_device_ids = []
 
         while True:
             response_data = call_imou_api(
@@ -28,52 +28,35 @@ def list_all_devices():
                 timeout=10
             )
 
-            # Vérification du code Imou
             if response_data.get("result", {}).get("code") != "0":
                 return jsonify(response_data), 400
 
             device_list = response_data["result"]["data"].get("deviceList", [])
             if not device_list:
-                break  # Plus de caméras à récupérer
+                break
 
             for d in device_list:
-                channels_data = d.get("channels") or []
+                all_device_ids.append(d.get("deviceId"))
 
-                channels = []
-                if channels_data:
-                    for c in channels_data:
-                        channels.append({
-                            "channelId": c.get("channelId", 0),
-                            "channelName": c.get("channelName", "Main"),
-                            "status": c.get("status", "unknown"),
-                            "ptz": c.get("ptz") or False
-                        })
-                else:
-                    # Si pas de canal, créer un canal principal par défaut
-                    channels.append({
-                        "channelId": 0,
-                        "channelName": "Main",
-                        "status": d.get("deviceStatus", "unknown"),
-                        "ptz": "PTZ" in (d.get("deviceAbility") or "")
-                    })
-
-                all_devices.append({
-                    "deviceId": d.get("deviceId"),
-                    "deviceName": d.get("deviceName"),
-                    "productId": d.get("productId"),
-                    "deviceStatus": d.get("deviceStatus"),
-                    "deviceModel": d.get("deviceModel"),
-                    "deviceAbility": d.get("deviceAbility"),
-                    "playToken": (d.get("playToken") or "").replace(" ", ""),
-                    "channels": channels,
-                    "upgradeInfo": d.get("upgradeInfo"),
-                    "brand": d.get("brand")
-                })
-
-            # Si moins que page_size, c'est la dernière page
             if len(device_list) < page_size:
                 break
             page += 1
+
+        all_devices = []
+        for i in range(0, len(all_device_ids), 8):
+            batch_ids = all_device_ids[i:i+8]
+            device_list_param = [{"deviceId": did, "channelList": "0"} for did in batch_ids]
+
+            response_data = call_imou_api(
+                "deviceBaseDetailList",
+                {"deviceList": device_list_param}
+            )
+
+            if response_data.get("result", {}).get("code") != "0":
+                current_app.logger.error(f"Erreur deviceBaseDetailList : {response_data}")
+                continue
+
+            all_devices.extend(response_data["result"]["data"].get("deviceList", []))
 
         return jsonify(all_devices), 200
 
