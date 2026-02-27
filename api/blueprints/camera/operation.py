@@ -5,32 +5,12 @@ operate_bp = Blueprint("operate", __name__)
 
 erreur_deviceId = "deviceId requis"
 
-# SNAPSHOT SIMPLE
-@operate_bp.route("/camera/snap", methods=["POST"])
-def set_device_snap():
-    data = request.json
-    device_id = data.get("deviceId")
-    channel_id = data.get("channelId", "0")
-
-    if not device_id:
-        return jsonify({"error": erreur_deviceId}), 400
-
-    try:
-        res = call_imou_api("setDeviceSnap", {
-            "deviceId": device_id,
-            "channelId": channel_id
-        })
-        return jsonify(res)
-    except Exception as e:
-        current_app.logger.error(f"Snap error: {e}")
-        return jsonify({"error": str(e)}), 500
-
 # SNAPSHOT AMÉLIORÉ
 @operate_bp.route("/camera/snap-hd", methods=["POST"])
 def set_device_snap_enhanced():
     data = request.json
     device_id = data.get("deviceId")
-    channel_id = data.get("channelId", "0")
+    channel_id = data.get("channelId", "1")
 
     if not device_id:
         return jsonify({"error": erreur_deviceId}), 400
