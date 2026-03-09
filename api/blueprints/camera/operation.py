@@ -10,7 +10,7 @@ erreur_deviceId = "deviceId requis"
 def set_device_snap_enhanced():
     data = request.json
     device_id = data.get("deviceId")
-    channel_id = data.get("channelId", "1")
+    channel_id = data.get("1")
 
     if not device_id:
         return jsonify({"error": erreur_deviceId}), 400

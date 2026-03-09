@@ -9,6 +9,7 @@ from api.blueprints.camera.video import video_bp
 from api.blueprints.meteo.bp_meteo import bp_meteo
 from api.blueprints.user.create_user import create_user_bp
 from api.blueprints.auth.login import login_bp
+from api.blueprints.vanne.vanne_bp import vanne_bp
 from api.utils.utils_func import CheckError
 
 BLUEPRINTS = [
@@ -22,7 +23,8 @@ BLUEPRINTS = [
     alarme_bp,
     detection_bp,
     storage_bp,
-    forgot_password_bp
+    forgot_password_bp,
+    vanne_bp,
 ]
 
 def register_routes(app):
