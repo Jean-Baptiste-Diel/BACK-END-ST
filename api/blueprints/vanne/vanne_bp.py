@@ -61,9 +61,8 @@ def get_device_list_backend(params, user_id=None):
     except requests.exceptions.RequestException as e:
         return {"status": "fail", "error": str(e)}
 
-
 # Endpoint Flask
-@vanne_bp.route("/device/list", methods=["POST"])
+@vanne_bp.route("/device/list", methods=["POST", "GET"])
 def device_list():
     """
     Attends un JSON similaire à :
@@ -89,4 +88,70 @@ def device_list():
     }
 
     result = get_device_list_backend(params=params, user_id=user_id)
+    return jsonify(result)
+
+API_PUMP_URL = "http://smart1688.net/prod_api/api/device/info/getPumpDeviceList"
+
+def get_pump_list_backend(params, user_id=None):
+    """
+    params: dict avec éventuellement:
+      - params: {deviceCategory, gatewayId}
+      - page: {page_num, page_size}
+    """
+    # Récupérer un token
+    token_data = get_vanne_token()  # réutilise le token vanne ou créer un get_pump_token si différent
+    if token_data["status"] != "success":
+        return {"error": token_data.get("error", {}), "status": "fail"}
+
+    open_token = token_data["token"]
+
+    # Construire le body conditionnel
+    body = {}
+    if params.get("params"):
+        body["params"] = {k: v for k, v in params["params"].items() if v is not None}
+    if params.get("page"):
+        body["page"] = params["page"]
+
+    headers = get_headers(user_id=user_id, open_token=open_token)
+
+    try:
+        r = requests.post(API_PUMP_URL, json=body, headers=headers, timeout=10)
+        data = r.json()
+        print("Request body:", body)
+        print("Status:", r.status_code)
+        print("Response:", r.text)
+
+        if data.get("tx_code") == "00":
+            return {"status": "success", "tx_code": data["tx_code"], "data": data.get("data"), "page": data.get("page")}
+        else:
+            return {"status": "fail", "error": data.get("error_info", {})}
+
+    except requests.exceptions.RequestException as e:
+        return {"status": "fail", "error": str(e)}
+
+
+@vanne_bp.route("/pump/list", methods=["POST"])
+def pump_list():
+    """
+    JSON attendu:
+    {
+      "userId": "123",
+      "params": {
+        "deviceCategory": "01",
+        "gatewayId": "xxx"  # facultatif selon deviceCategory
+      },
+      "page": {
+        "page_num": 0,
+        "page_size": 10
+      }
+    }
+    """
+    req_data = request.get_json() or {}
+    user_id = req_data.get("userId")
+    params = {
+        "params": req_data.get("params"),
+        "page": req_data.get("page")
+    }
+
+    result = get_pump_list_backend(params=params, user_id=user_id)
     return jsonify(result)
