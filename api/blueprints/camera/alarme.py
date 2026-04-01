@@ -5,77 +5,86 @@ from api.utils.utils_func import call_imou_api
 
 alarme_bp = Blueprint("alarm", __name__)
 
-from flask import jsonify
+# Liste des capabilities possibles
+CAPABILITIES = [
+    "CRMDSENS",
+    "localRecord",
+    "localStorage",
+    "chnLocalStorage",
+    "smartTrack",
+    "motionDetect",
+    "aiHuman",
+    "CRH",
+    "CRMDR"
+]
 
 @alarme_bp.route("/camera-status", methods=["POST"])
 def camera_status():
     try:
-        device_id = "4909BBDPSF92B70"
-        channel_id = "0"
+        body = request.get_json() or {}
+        device_id = body.get("deviceId")
+        channel_id = body.get("channelId", "0")
 
-        liste = [
-            "CRMDSENS",
-            "localRecord",
-            "localStorage",
-            "chnLocalStorage",
-            "smartTrack",
-            "motionDetect",
-            "aiHuman",
-            "CRH",
-            "CRMDR"
-        ]
+        if not device_id:
+            return jsonify({"error": "deviceId requis"}), 400
 
         results = {}
-
-        for enable_type in liste:
+        for enable_type in CAPABILITIES:
             response = call_imou_api("getDeviceCameraStatus", {
                 "deviceId": device_id,
                 "channelId": channel_id,
                 "enableType": enable_type
             })
-
-            # garde toute la réponse
             results[enable_type] = response
 
         return jsonify(results), 200
 
     except Exception as e:
+        current_app.logger.error(f"Erreur récupération camera-status: {e}")
         return jsonify({"error": str(e)}), 500
+
 
 @alarme_bp.route("/update-status", methods=["POST"])
 def active_alarme():
-    body = request.get_json()
-    device_id = "4909BBDPSF92B70" #body.get("deviceId",)
-    channel_id = body.get("channelId", "0")
-    enable_type = body.get("enableType", "motionDetect")
-
-    if not device_id:
-        return jsonify({"error": "deviceId requis"}), 400
-
     try:
+        body = request.get_json() or {}
+        device_id = body.get("deviceId")
+        channel_id = body.get("channelId", "0")
+        enable_type = body.get("enableType")
+        enable_value = str(body.get("enable", "true")).lower()
+
+        if not device_id or not enable_type:
+            return jsonify({"error": "deviceId et enableType requis"}), 400
+
+        if enable_type not in CAPABILITIES:
+            return jsonify({"error": f"enableType invalide, doit être dans {CAPABILITIES}"}), 400
+
         response = call_imou_api("setDeviceCameraStatus", {
-            "enableType": enable_type,
-            "enable": "true",
             "deviceId": device_id,
             "channelId": channel_id,
+            "enableType": enable_type,
+            "enable": enable_value
         })
 
         if response.get("result", {}).get("code") != "0":
             return jsonify({
-                "error": "Erreur activation alarme",
+                "error": "Erreur activation/désactivation alarme",
                 "details": response
             }), 500
 
+        status_text = "activée" if enable_value == "true" else "désactivée"
+
         return jsonify({
             "deviceId": device_id,
-            "status": "alarme activée",
+            "channelId": channel_id,
+            "enableType": enable_type,
+            "status": f"alarme {status_text}",
             "response": response
         }), 200
 
     except Exception as e:
-        current_app.logger.error(f"Erreur activation alarme : {e}")
+        current_app.logger.error(f"Erreur update-status : {e}")
         return jsonify({"error": str(e)}), 500
-
 
 @alarme_bp.route("/update-motion", methods=["POST"])
 def update_motion():
