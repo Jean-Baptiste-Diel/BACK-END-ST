@@ -1,157 +1,199 @@
 import requests
 from flask import Blueprint, request, jsonify
-
 from api.utils.token import get_vanne_token
 
 vanne_bp = Blueprint("vanne_bp", __name__)
 
-# Endpoint pour récupérer un token (facultatif si utilisé uniquement en interne)
-@vanne_bp.route("/token", methods=["POST", "GET"])
-def vanne_token():
-    token = get_vanne_token()
-    return {"token": token}
+BASE_URL = "http://smart1688.net/prod_api"
 
-API_URL = "http://smart1688.net/prod_api/api/device/info/getDeviceListBackend"
-
-# Fonction pour construire les headers comme en Dart
+# UTILITAIRES
 def get_headers(user_id=None, open_token=None):
     headers = {
-        "Content-Type": "application/json",
+        "Content-Type": "application/json"
     }
+
     if user_id:
         headers["UserId"] = str(user_id)
+
     if open_token:
         headers["open_token"] = open_token
+
     return headers
 
-# Fonction pour récupérer la liste des devices
-def get_device_list_backend(params, user_id=None):
-    """
-    params: dictionnaire optionnel avec clés
-        imeiCode, deviceName, deviceType, deviceStatus, page (dict)
-    """
-    # Récupération du token si nécessaire
+
+def get_token():
     token_data = get_vanne_token()
+
     if token_data["status"] != "success":
-        return {"error": token_data.get("error", {}), "status": "fail"}
+        return None, {"status": "fail", "error": token_data.get("error", {})}
 
-    open_token = token_data["token"]
+    return token_data["token"], None
 
-    # Construction du body JSON conditionnel
-    body = {}
-    if params.get("params"):
-        body["params"] = {k: v for k, v in params["params"].items() if v is not None}
-    if params.get("page"):
-        body["page"] = params["page"]
+
+def post_to_api(endpoint, body=None, user_id=None):
+    open_token, error = get_token()
+
+    if error:
+        return error
 
     headers = get_headers(user_id=user_id, open_token=open_token)
 
     try:
-        r = requests.post(API_URL, json=body, headers=headers, timeout=10)
+        r = requests.post(
+            f"{BASE_URL}{endpoint}",
+            json=body or {},
+            headers=headers,
+            timeout=10
+        )
+
         data = r.json()
-        print("Request body:", body)
-        print("Status:", r.status_code)
-        print("Response:", r.text)
+
+        print("URL:", endpoint)
+        print("BODY:", body)
+        print("STATUS:", r.status_code)
+        print("RESPONSE:", r.text)
 
         if data.get("tx_code") == "00":
-            return {"status": "success", "tx_code": data["tx_code"], "data": data.get("data"), "page": data.get("page")}
-        else:
-            return {"status": "fail", "error": data.get("error_info", {})}
+            return {
+                "status": "success",
+                "tx_code": data.get("tx_code"),
+                "data": data.get("data"),
+                "page": data.get("page")
+            }
 
-    except requests.exceptions.RequestException as e:
+        return {
+            "status": "fail",
+            "error": data.get("error_info", data)
+        }
+
+    except Exception as e:
         return {"status": "fail", "error": str(e)}
 
-# Endpoint Flask
-@vanne_bp.route("/device/list", methods=["POST", "GET"])
-def device_list():
-    """
-    Attends un JSON similaire à :
-    {
-        "userId": "123",
-        "params": {
-            "imeiCode": "xxx",
-            "deviceName": "Vanne",
-            "deviceType": "00",
-            "deviceStatus": "60"
-        },
-        "page": {
-            "page_num": 0,
-            "page_size": 10
-        }
-    }
-    """
-    req_data = request.get_json() or {}
-    user_id = req_data.get("userId")
-    params = {
-        "params": req_data.get("params"),
-        "page": req_data.get("page")
-    }
+# TOKEN
+@vanne_bp.route("/token", methods=["GET", "POST"])
+def token():
+    return jsonify(get_vanne_token())
 
-    result = get_device_list_backend(params=params, user_id=user_id)
+# USER INFO
+@vanne_bp.route("/user/info", methods=["POST"])
+def user_info():
+    return jsonify(
+        post_to_api(
+            "/api/user/info/user_info",
+            body={
+                "page": {
+                    "page_num": 0,
+                    "page_size": 10
+                },
+                "params": ""
+            }
+        )
+    )
+
+# DEVICE LIST
+@vanne_bp.route("/device/list", methods=["POST"])
+def device_list():
+    req_data = request.get_json() or {}
+
+    result = post_to_api(
+        "/api/device/info/getDeviceListBackend",
+        body={
+            "params": req_data.get("params", {}),
+            "page": req_data.get("page", {
+                "page_num": 0,
+                "page_size": 10
+            })
+        },
+        user_id=req_data.get("userId")
+    )
+
     return jsonify(result)
 
-API_PUMP_URL = "http://smart1688.net/prod_api/api/device/info/getPumpDeviceList"
+# DEVICE DETAILS
+@vanne_bp.route("/device/details", methods=["POST"])
+def device_details():
+    req_data = request.get_json() or {}
 
-def get_pump_list_backend(params, user_id=None):
-    """
-    params: dict avec éventuellement:
-      - params: {deviceCategory, gatewayId}
-      - page: {page_num, page_size}
-    """
-    # Récupérer un token
-    token_data = get_vanne_token()  # réutilise le token vanne ou créer un get_pump_token si différent
-    if token_data["status"] != "success":
-        return {"error": token_data.get("error", {}), "status": "fail"}
+    result = post_to_api(
+        "/api/device/info/getDeviceInfo",
+        body={
+            "imeiCode": req_data.get("imeiCode")
+        },
+        user_id=req_data.get("userId")
+    )
 
-    open_token = token_data["token"]
+    return jsonify(result)
 
-    # Construire le body conditionnel
-    body = {}
-    if params.get("params"):
-        body["params"] = {k: v for k, v in params["params"].items() if v is not None}
-    if params.get("page"):
-        body["page"] = params["page"]
-
-    headers = get_headers(user_id=user_id, open_token=open_token)
-
-    try:
-        r = requests.post(API_PUMP_URL, json=body, headers=headers, timeout=10)
-        data = r.json()
-        print("Request body:", body)
-        print("Status:", r.status_code)
-        print("Response:", r.text)
-
-        if data.get("tx_code") == "00":
-            return {"status": "success", "tx_code": data["tx_code"], "data": data.get("data"), "page": data.get("page")}
-        else:
-            return {"status": "fail", "error": data.get("error_info", {})}
-
-    except requests.exceptions.RequestException as e:
-        return {"status": "fail", "error": str(e)}
-
-
+# PUMP LIST
 @vanne_bp.route("/pump/list", methods=["POST"])
 def pump_list():
-    """
-    JSON attendu:
-    {
-      "userId": "123",
-      "params": {
-        "deviceCategory": "01",
-        "gatewayId": "xxx"  # facultatif selon deviceCategory
-      },
-      "page": {
-        "page_num": 0,
-        "page_size": 10
-      }
-    }
-    """
     req_data = request.get_json() or {}
-    user_id = req_data.get("userId")
-    params = {
-        "params": req_data.get("params"),
-        "page": req_data.get("page")
-    }
+    result = post_to_api(
+        "/api/device/info/getPumpDeviceList",
+        body={
+            "params": req_data.get("params", {}),
+            "page": req_data.get("page", {
+                "page_num": 0,
+                "page_size": 10
+            })
+        },
+        user_id=req_data.get("userId")
+    )
+    return jsonify(result)
 
-    result = get_pump_list_backend(params=params, user_id=user_id)
+# OPEN / CLOSE VALVE
+@vanne_bp.route("/device/control", methods=["POST"])
+def control_device():
+    req_data = request.get_json() or {}
+
+    result = post_to_api(
+        "/api/task/group/save-single",
+        body={
+            "deviceId": req_data.get("deviceId"),
+            "controlType": req_data.get("controlType", "00"),
+            "percentage": req_data.get("percentage", 100),
+            "workHourDuration": req_data.get("workHourDuration", 0),
+            "workMinDuration": req_data.get("workMinDuration", 0)
+        },
+        user_id=req_data.get("userId")
+    )
+
+    return jsonify(result)
+
+# SCHEDULE TASK
+@vanne_bp.route("/device/schedule/add", methods=["POST"])
+def add_schedule():
+    req_data = request.get_json() or {}
+
+    result = post_to_api(
+        "/api/task/timing/add",
+        body=req_data,
+        user_id=req_data.get("userId")
+    )
+
+    return jsonify(result)
+
+# DELETE TASK
+@vanne_bp.route("/device/schedule/delete", methods=["POST"])
+def delete_schedule():
+    req_data = request.get_json() or {}
+
+    result = post_to_api(
+        "/api/task/timing/batch-del",
+        body=req_data,
+        user_id=req_data.get("userId")
+    )
+
+    return jsonify(result)
+
+# DEVICE LOGS
+@vanne_bp.route("/device/logs", methods=["POST"])
+def device_logs():
+    req_data = request.get_json() or {}
+
+    result = post_to_api(
+        "/api/device/log/page_list",
+        body=req_data,
+        user_id=req_data.get("userId")
+    )
     return jsonify(result)
