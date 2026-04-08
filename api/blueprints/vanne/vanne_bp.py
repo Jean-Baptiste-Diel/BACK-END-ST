@@ -112,6 +112,7 @@ def device_list():
 # DEVICE DETAILS
 @vanne_bp.route("/device/details", methods=["POST"])
 def device_details():
+
     req_data = request.get_json() or {}
 
     result = post_to_api(
