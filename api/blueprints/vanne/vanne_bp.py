@@ -111,16 +111,31 @@ def post_to_api(endpoint, body=None):
     if auth["status"] != "success":
         return auth
 
-    headers = get_headers(user_id=auth["user_id"], open_token=auth["token"])
+    headers = get_headers(
+        user_id=auth["user_id"],
+        open_token=auth["token"]
+    )
 
     try:
         r = requests.post(f"{BASE_URL}{endpoint}", json=body or {}, headers=headers, timeout=10)
         data = r.json()
 
-        if data.get("tx_code") == "00":
-            return {"status": "success", "tx_code": data.get("tx_code"), "data": data.get("data"), "page": data.get("page")}
+        # 🔥 FIX IMPORTANT
+        if data.get("error", {}).get("code") == "401":
+            clear_cache()
+            return refresh_auth_cache()
 
-        return {"status": "fail", "error": data.get("error_info", data)}
+        if data.get("tx_code") == "00":
+            return {
+                "status": "success",
+                "data": data.get("data"),
+                "page": data.get("page")
+            }
+
+        return {
+            "status": "fail",
+            "error": data.get("error_info", data)
+        }
 
     except Exception as e:
         return {"status": "fail", "error": str(e)}
