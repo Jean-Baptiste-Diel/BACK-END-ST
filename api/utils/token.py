@@ -108,3 +108,84 @@ def get_vanne_token():
 
     except requests.exceptions.RequestException as e:
         return {"error": str(e), "status": "fail"}
+
+
+# CACHE TOKEN VANNE
+VANNE_TOKEN_CACHE = {
+    "token": None,
+    "expires_at": 0
+}
+
+# =========================
+# REFRESH TOKEN VANNE
+# =========================
+def refresh_vanne_token():
+    """
+    Force récupération d'un nouveau token depuis smart1688
+    """
+
+    url = "http://smart1688.net/prod_api/open_api/anon/get_open_token"
+
+    body = {
+        "params": {
+            "appId": APP_ID_VANNE,
+            "appSecretKey": APP_SECRET_VANNE
+        }
+    }
+
+    try:
+        r = requests.post(url, json=body, timeout=10)
+        data = r.json()
+
+        print("🔐 VANNE TOKEN RESPONSE:", data)
+
+        if data.get("tx_code") != "00":
+            return {"status": "fail", "error": data}
+
+        token = data["data"]["open_token"]
+
+        # expiration (si API ne donne pas expire → on met 1h par défaut)
+        expires_in = data["data"].get("expire_time", 3600)
+        now = int(time.time())
+
+        VANNE_TOKEN_CACHE["token"] = token
+        VANNE_TOKEN_CACHE["expires_at"] = now + int(expires_in) - 60  # marge 60s
+
+        return {
+            "status": "success",
+            "token": token
+        }
+
+    except Exception as e:
+        return {
+            "status": "fail",
+            "error": str(e)
+        }
+
+
+# =========================
+# GET TOKEN (CACHE + AUTO REFRESH)
+# =========================
+def get_vanne_token():
+    now = int(time.time())
+
+    # ✔ si token encore valide
+    if (
+        VANNE_TOKEN_CACHE["token"]
+        and now < VANNE_TOKEN_CACHE["expires_at"]
+    ):
+        return {
+            "status": "success",
+            "token": VANNE_TOKEN_CACHE["token"]
+        }
+
+    # ❌ sinon refresh
+    return refresh_vanne_token()
+
+
+# =========================
+# CLEAR TOKEN (OPTIONNEL)
+# =========================
+def clear_vanne_token():
+    VANNE_TOKEN_CACHE["token"] = None
+    VANNE_TOKEN_CACHE["expires_at"] = 0

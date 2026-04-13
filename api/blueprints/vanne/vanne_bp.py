@@ -1,130 +1,91 @@
 import requests
 from flask import Blueprint, request, jsonify
-from api.utils.token import get_vanne_token
-from upstash_redis import Redis
-import os
+from api.utils.token import get_vanne_token, refresh_vanne_token
 
 vanne_bp = Blueprint("vanne_bp", __name__)
 
 BASE_URL = "http://smart1688.net/prod_api"
-CACHE_TTL = 86400  # 24h en secondes
 
-REDIS_URL = os.getenv("REDIS_URL")
-REDIS_TOKEN = os.getenv("REDIS_TOKEN")
-redis_client = Redis(url=REDIS_URL, token=REDIS_TOKEN)
 
-# UTILITAIRES
+# =========================
+# HEADERS
+# =========================
 def get_headers(user_id=None, open_token=None):
     headers = {
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
     }
+
     if user_id:
         headers["UserId"] = str(user_id)
+
     if open_token:
         headers["open_token"] = open_token
+
     return headers
 
-# REDIS CACHE
-def set_cache(token, user_id):
-    """Sauvegarde token + user id pendant 24h"""
-    redis_client.set("smart_token", token, ex=CACHE_TTL)
-    redis_client.set("smart_user_id", user_id, ex=CACHE_TTL)
 
-def clear_cache():
-    """Supprime le cache"""
-    redis_client.delete("smart_token")
-    redis_client.delete("smart_user_id")
+# =========================
+# CORE API CALL
+# =========================
+def post_to_api(endpoint, body=None, user_id=None, retry=True):
 
-def get_cached_auth():
-    """Récupère depuis Upstash Redis"""
-    token = redis_client.get("smart_token")
-    user_id = redis_client.get("smart_user_id")
-
-    if token and user_id:
-        return {
-            "status": "success",
-            "token": token,
-            "user_id": user_id,
-            "cached": True
-        }
-
-    return None
-
-# REFRESH CACHE
-def refresh_auth_cache():
-    """Appelle l'API externe et met Redis à jour"""
     token_data = get_vanne_token()
 
-    if token_data["status"] != "success":
-        return {
-            "status": "fail",
-            "error": token_data.get("error", {})
-        }
+    if token_data.get("status") != "success":
+        return token_data
 
-    token = token_data["token"]
-    headers = get_headers(open_token=token)
+    open_token = token_data.get("token")
+    if not open_token:
+        return {"status": "fail", "error": "missing_token"}
+
+    headers = get_headers(user_id=user_id, open_token=open_token)
 
     try:
         r = requests.post(
-            f"{BASE_URL}/api/user/info/user_info",
-            json={
-                "page": {"page_num": 0, "page_size": 10},
-                "params": ""
-            },
+            f"{BASE_URL}{endpoint}",
+            json=body or {},
             headers=headers,
             timeout=10
         )
 
-        data = r.json()
+        try:
+            data = r.json()
+        except Exception:
+            return {
+                "status": "fail",
+                "error": "invalid_json_response",
+                "raw": r.text
+            }
 
-        if data.get("tx_code") != "00":
-            return {"status": "fail", "error": data.get("error_info", data)}
+        print("📡 RESPONSE:", data)
 
-        user_id = data["data"]["id"]
+        # =========================
+        # SAFE ERROR EXTRACTION
+        # =========================
+        error_info = data.get("error_info") or {}
+        error = data.get("error") or {}
 
-        # Sauvegarde Upstash Redis
-        set_cache(token, user_id)
+        error_code = None
 
-        return {
-            "status": "success",
-            "token": token,
-            "user_id": user_id,
-            "cached": False
-        }
+        if isinstance(error, dict):
+            error_code = error.get("code")
 
-    except Exception as e:
-        return {"status": "fail", "error": str(e)}
+        if isinstance(error_info, dict):
+            error_code = error_code or error_info.get("code")
 
-def get_auth_data():
-    """1) regarde Redis 2) sinon refresh"""
-    cached = get_cached_auth()
-    if cached:
-        return cached
-    return refresh_auth_cache()
+        # =========================
+        # TOKEN EXPIRED → REFRESH
+        # =========================
+        if error_code == "401" and retry:
+            print("🔄 Token invalide → refresh")
 
-# =========================
-# API CALL
-# =========================
-def post_to_api(endpoint, body=None):
-    auth = get_auth_data()
+            refresh_vanne_token()
 
-    if auth["status"] != "success":
-        return auth
+            return post_to_api(endpoint, body, user_id, retry=False)
 
-    headers = get_headers(
-        user_id=auth["user_id"],
-        open_token=auth["token"]
-    )
-
-    try:
-        r = requests.post(f"{BASE_URL}{endpoint}", json=body or {}, headers=headers, timeout=10)
-        data = r.json()
-
-        # 🔥 FIX IMPORTANT
-        if data.get("error", {}).get("code") == "401":
-            clear_cache()
-            return refresh_auth_cache()
-
+        # =========================
+        # SUCCESS
+        # =========================
         if data.get("tx_code") == "00":
             return {
                 "status": "success",
@@ -132,52 +93,54 @@ def post_to_api(endpoint, body=None):
                 "page": data.get("page")
             }
 
+        # =========================
+        # FAIL SAFE
+        # =========================
         return {
             "status": "fail",
-            "error": data.get("error_info", data)
+            "error": error_info or error or data
         }
 
     except Exception as e:
-        return {"status": "fail", "error": str(e)}
+        return {
+            "status": "fail",
+            "error": str(e)
+        }
+
 
 # =========================
 # ROUTES
 # =========================
-@vanne_bp.route("/token", methods=["GET", "POST"])
-def token():
-    return jsonify(get_auth_data())
 
 @vanne_bp.route("/device/list", methods=["POST"])
 def device_list():
-    req_data = request.get_json() or {}
-    result = post_to_api(
-        "/api/device/info/getDeviceListBackend",
-        body={"params": req_data.get("params", {}), "page": req_data.get("page", {"page_num": 0, "page_size": 10})}
+    req = request.get_json() or {}
+
+    return jsonify(
+        post_to_api(
+            "/api/device/info/getDeviceListBackend",
+            body={
+                "params": req.get("params", {}),
+                "page": req.get("page", {
+                    "page_num": 0,
+                    "page_size": 10
+                })
+            },
+            user_id=req.get("userId")
+        )
     )
-    return jsonify(result)
+
 
 @vanne_bp.route("/device/details", methods=["POST"])
 def device_details():
-    req_data = request.get_json() or {}
-    result = post_to_api("/api/device/info/getDeviceInfo", body={"imeiCode": req_data.get("imeiCode")})
-    return jsonify(result)
+    req = request.get_json() or {}
 
-@vanne_bp.route("/device/control", methods=["POST"])
-def control_device():
-    req_data = request.get_json() or {}
-    result = post_to_api(
-        "/api/task/group/save-single",
-        body={
-            "deviceId": req_data.get("deviceId"),
-            "controlType": req_data.get("controlType", "00"),
-            "percentage": req_data.get("percentage", 100),
-            "workHourDuration": req_data.get("workHourDuration", 0),
-            "workMinDuration": req_data.get("workMinDuration", 0),
-        }
+    return jsonify(
+        post_to_api(
+            "/api/device/info/getDeviceInfo",
+            body={
+                "imeiCode": req.get("imeiCode")
+            },
+            user_id=req.get("userId")
+        )
     )
-    return jsonify(result)
-
-@vanne_bp.route("/cache/refresh", methods=["POST"])
-def refresh_cache():
-    clear_cache()
-    return jsonify(refresh_auth_cache())
