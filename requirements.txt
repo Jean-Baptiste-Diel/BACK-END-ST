@@ -28,3 +28,5 @@ Werkzeug==3.1.5
 logging
 flask-mail
 requests
+redis
+upstash_redis
