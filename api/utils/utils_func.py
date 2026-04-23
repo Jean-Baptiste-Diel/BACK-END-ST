@@ -224,15 +224,15 @@ def call_tuya_api(method: str, path: str, access_token: str = None, body: dict =
     headers = {
         "client_id": APP_ID_POMPE,
         "sign": sign,
+        "sign_method": "HMAC-SHA256",
         "t": t,
-        "sign_method": "HMAC-SHA256"
     }
 
     if access_token:
         headers["access_token"] = access_token
-
+    print(headers)
     url = BASE_URL_TUYA + path
-
+    print("url" + url)
     if method.upper() == "GET":
         return requests.get(url, headers=headers).json()
     else:

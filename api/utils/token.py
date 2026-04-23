@@ -29,6 +29,7 @@ VANNE_TOKEN_CACHE = {
     "token": None,
     "expires_at": 0
 }
+
 # SIGN GENERATE OF IMOU
 def generate_sign():
     timestamp = int(time.time())
@@ -71,11 +72,15 @@ def get_tuya_token():
         "sign_method": "HMAC-SHA256"
     }
 
-    url = BASE_URL_TUYA + path
+    url = BASE_URL_TUYA + "/v1.0/token?grant_type=1"
 
     response = requests.get(url, headers=headers)
 
-    return response.json()
+    data = response.json()
+    print("TUYA TOKEN RESPONSE:", data)
+
+    return data
+
 # TOKEN INTERNE (UTILITAIRE)
 def get_imou_token():
     now = int(time.time())
@@ -129,12 +134,10 @@ def get_vanne_token():
 
     body = {
         'params': {
-        "appId": APP_ID_VANNE,
-        "appSecretKey": APP_SECRET_VANNE
+            "appId": APP_ID_VANNE,
+            "appSecretKey": APP_SECRET_VANNE
+        }
     }
-    }
-
-    print("Request body:", body)
 
     try:
         r = requests.post(url, json=body, timeout=10)
@@ -147,10 +150,16 @@ def get_vanne_token():
             return {"error": data.get("error_info", {}), "status": "fail"}
 
         token = data["data"]["open_token"]
-        return {"token": token, "status": "success"}
+        return {
+            "token": token,
+            "status": "success"
+        }
 
     except requests.exceptions.RequestException as e:
-        return {"error": str(e), "status": "fail"}
+        return {
+            "error": str(e),
+            "status": "fail"
+        }
 # REFRESH TOKEN VANNE
 def refresh_vanne_token():
     """

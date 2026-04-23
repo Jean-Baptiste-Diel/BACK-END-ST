@@ -30,3 +30,4 @@ flask-mail
 requests
 redis
 upstash_redis
+paho-mqtt
