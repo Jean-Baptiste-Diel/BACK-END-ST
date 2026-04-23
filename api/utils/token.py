@@ -1,3 +1,4 @@
+import hmac
 import os
 import time
 import uuid
@@ -9,7 +10,10 @@ from flask import current_app
 APP_ID = os.environ.get("APP_ID")
 APP_SECRET = os.environ.get("APP_SECRET")
 DATACENTER = os.environ.get("DATACENTER")
-
+# IDENTIFIANTS TUYA
+APP_ID_POMPE = os.environ.get("APP_ID_POMPE")
+CLIENT_SECRET = os.environ.get("SECRET_KEY_POMPE")
+BASE_URL_TUYA = os.environ.get("BASE_URL_TUYA")
 # IDENTIFIANTS VANNE
 APP_ID_VANNE=os.environ.get("APP_ID_VANNE")
 APP_SECRET_VANNE=os.environ.get("APP_SECRET_VANNE")
@@ -20,14 +24,62 @@ IMOU_TOKEN_CACHE = {
     "domain": None,
     "expires_at": 0
 }
+# CACHE TOKEN VANNE
+VANNE_TOKEN_CACHE = {
+    "token": None,
+    "expires_at": 0
+}
 
-# SIGN
+# SIGN GENERATE OF IMOU
 def generate_sign():
     timestamp = int(time.time())
     nonce = str(uuid.uuid4())
     raw = f"time:{timestamp},nonce:{nonce},appSecret:{APP_SECRET}"
     sign = hashlib.md5(raw.encode()).hexdigest()
     return timestamp, nonce, sign
+# SIGN GENERATE OF TUYA
+    # UTIL SHA256
+def sha256(content: str):
+    return hashlib.sha256(content.encode("utf-8")).hexdigest()
+def generate_sign_tuya():
+    t = str(int(time.time() * 1000))
+
+    method = "GET"
+    path = "/v1.0/token?grant_type=1"
+    body = ""
+
+    body_hash = sha256(body)
+
+    string_to_sign = f"{method}\n{body_hash}\n\n{path}"
+
+    sign_str = APP_ID_POMPE + t + string_to_sign
+
+    sign = hmac.new(
+        CLIENT_SECRET.encode("utf-8"),
+        sign_str.encode("utf-8"),
+        hashlib.sha256
+    ).hexdigest().upper()
+
+    return t, sign, path
+# GET TOKEN TUYA
+def get_tuya_token():
+    t, sign, path = generate_sign_tuya()
+
+    headers = {
+        "client_id": APP_ID_POMPE,
+        "sign": sign,
+        "t": t,
+        "sign_method": "HMAC-SHA256"
+    }
+
+    url = BASE_URL_TUYA + "/v1.0/token?grant_type=1"
+
+    response = requests.get(url, headers=headers)
+
+    data = response.json()
+    print("TUYA TOKEN RESPONSE:", data)
+
+    return data
 
 # TOKEN INTERNE (UTILITAIRE)
 def get_imou_token():
@@ -73,12 +125,8 @@ def get_imou_token():
         "domain": domain,
         "expires_at": now + expire - 60
     })
-
     current_app.logger.info("Nouveau token Imou")
-
     return token, domain
-
-import requests
 
 # TOKEN POUR LES VANNES
 def get_vanne_token():
@@ -86,12 +134,10 @@ def get_vanne_token():
 
     body = {
         'params': {
-        "appId": APP_ID_VANNE,
-        "appSecretKey": APP_SECRET_VANNE
+            "appId": APP_ID_VANNE,
+            "appSecretKey": APP_SECRET_VANNE
+        }
     }
-    }
-
-    print("Request body:", body)
 
     try:
         r = requests.post(url, json=body, timeout=10)
@@ -104,21 +150,17 @@ def get_vanne_token():
             return {"error": data.get("error_info", {}), "status": "fail"}
 
         token = data["data"]["open_token"]
-        return {"token": token, "status": "success"}
+        return {
+            "token": token,
+            "status": "success"
+        }
 
     except requests.exceptions.RequestException as e:
-        return {"error": str(e), "status": "fail"}
-
-
-# CACHE TOKEN VANNE
-VANNE_TOKEN_CACHE = {
-    "token": None,
-    "expires_at": 0
-}
-
-# =========================
+        return {
+            "error": str(e),
+            "status": "fail"
+        }
 # REFRESH TOKEN VANNE
-# =========================
 def refresh_vanne_token():
     """
     Force récupération d'un nouveau token depuis smart1688
@@ -137,19 +179,18 @@ def refresh_vanne_token():
         r = requests.post(url, json=body, timeout=10)
         data = r.json()
 
-        print("🔐 VANNE TOKEN RESPONSE:", data)
+        print("VANNE TOKEN RESPONSE:", data)
 
         if data.get("tx_code") != "00":
             return {"status": "fail", "error": data}
 
         token = data["data"]["open_token"]
 
-        # expiration (si API ne donne pas expire → on met 1h par défaut)
         expires_in = data["data"].get("expire_time", 3600)
         now = int(time.time())
 
         VANNE_TOKEN_CACHE["token"] = token
-        VANNE_TOKEN_CACHE["expires_at"] = now + int(expires_in) - 60  # marge 60s
+        VANNE_TOKEN_CACHE["expires_at"] = now + int(expires_in) - 60
 
         return {
             "status": "success",
@@ -161,15 +202,11 @@ def refresh_vanne_token():
             "status": "fail",
             "error": str(e)
         }
-
-
-# =========================
 # GET TOKEN (CACHE + AUTO REFRESH)
-# =========================
 def get_vanne_token():
     now = int(time.time())
 
-    # ✔ si token encore valide
+    # si token encore valide
     if (
         VANNE_TOKEN_CACHE["token"]
         and now < VANNE_TOKEN_CACHE["expires_at"]
@@ -179,13 +216,9 @@ def get_vanne_token():
             "token": VANNE_TOKEN_CACHE["token"]
         }
 
-    # ❌ sinon refresh
+    # sinon refresh
     return refresh_vanne_token()
-
-
-# =========================
 # CLEAR TOKEN (OPTIONNEL)
-# =========================
 def clear_vanne_token():
     VANNE_TOKEN_CACHE["token"] = None
     VANNE_TOKEN_CACHE["expires_at"] = 0

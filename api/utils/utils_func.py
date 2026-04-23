@@ -19,10 +19,14 @@ from api.utils.token import generate_sign, get_imou_token
 
 SIMPLE_RE = re.compile(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$")
 
+# IDENTIFIANTS IMOU
 APP_ID = os.environ.get("APP_ID")
 APP_SECRET = os.environ.get("APP_SECRET")
 DATA_CENTER = os.environ.get("DATACENTER")
-
+# IDENTIFIANTS TUYA
+APP_ID_POMPE = os.environ.get("APP_ID_POMPE")
+CLIENT_SECRET = os.environ.get("SECRET_KEY_POMPE")
+BASE_URL_TUYA = os.environ.get("BASE_URL_TUYA")
 def is_valid_mail_format(mail: str) -> bool:
     """Check if the email is in valid format."""
     if not mail or mail == "":
@@ -195,3 +199,41 @@ def call_imou_api(endpoint: str, params: dict, timeout: int = 10):
     url = f"https://openapi-{DATA_CENTER}.easy4ip.com/openapi/{endpoint}"
     response = requests.post(url, json=body, timeout=timeout)
     return response.json()
+# UTILITAIRE POUR APPEL TUYA
+def call_tuya_api(method: str, path: str, access_token: str = None, body: dict = None):
+    import time, json, hashlib, hmac, requests
+
+    if body is None:
+        body = {}
+
+    t = str(int(time.time() * 1000))
+
+    body_str = json.dumps(body, separators=(",", ":")) if body else ""
+    body_hash = hashlib.sha256(body_str.encode("utf-8")).hexdigest()
+
+    string_to_sign = f"{method}\n{body_hash}\n\n{path}"
+
+    sign_str = APP_ID_POMPE + (access_token or "") + t + string_to_sign
+
+    sign = hmac.new(
+        CLIENT_SECRET.encode("utf-8"),
+        sign_str.encode("utf-8"),
+        hashlib.sha256
+    ).hexdigest().upper()
+
+    headers = {
+        "client_id": APP_ID_POMPE,
+        "sign": sign,
+        "sign_method": "HMAC-SHA256",
+        "t": t,
+    }
+
+    if access_token:
+        headers["access_token"] = access_token
+    print(headers)
+    url = BASE_URL_TUYA + path
+    print("url" + url)
+    if method.upper() == "GET":
+        return requests.get(url, headers=headers).json()
+    else:
+        return requests.post(url, json=body, headers=headers).json()

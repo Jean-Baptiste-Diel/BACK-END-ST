@@ -6,10 +6,7 @@ vanne_bp = Blueprint("vanne_bp", __name__)
 
 BASE_URL = "http://smart1688.net/prod_api"
 
-
-# =========================
 # HEADERS
-# =========================
 def get_headers(user_id=None, open_token=None):
     headers = {
         "Content-Type": "application/json",
@@ -23,10 +20,7 @@ def get_headers(user_id=None, open_token=None):
 
     return headers
 
-
-# =========================
 # CORE API CALL
-# =========================
 def post_to_api(endpoint, body=None, user_id=None, retry=True):
 
     token_data = get_vanne_token()
@@ -57,11 +51,9 @@ def post_to_api(endpoint, body=None, user_id=None, retry=True):
                 "raw": r.text
             }
 
-        print("📡 RESPONSE:", data)
+        print("RESPONSE:", data)
 
-        # =========================
         # SAFE ERROR EXTRACTION
-        # =========================
         error_info = data.get("error_info") or {}
         error = data.get("error") or {}
 
@@ -73,19 +65,15 @@ def post_to_api(endpoint, body=None, user_id=None, retry=True):
         if isinstance(error_info, dict):
             error_code = error_code or error_info.get("code")
 
-        # =========================
         # TOKEN EXPIRED → REFRESH
-        # =========================
         if error_code == "401" and retry:
-            print("🔄 Token invalide → refresh")
+            print("Token invalide → refresh")
 
             refresh_vanne_token()
 
             return post_to_api(endpoint, body, user_id, retry=False)
 
-        # =========================
         # SUCCESS
-        # =========================
         if data.get("tx_code") == "00":
             return {
                 "status": "success",
@@ -93,9 +81,7 @@ def post_to_api(endpoint, body=None, user_id=None, retry=True):
                 "page": data.get("page")
             }
 
-        # =========================
         # FAIL SAFE
-        # =========================
         return {
             "status": "fail",
             "error": error_info or error or data
@@ -107,15 +93,10 @@ def post_to_api(endpoint, body=None, user_id=None, retry=True):
             "error": str(e)
         }
 
-
-# =========================
 # ROUTES
-# =========================
-
 @vanne_bp.route("/device/list", methods=["POST"])
 def device_list():
     req = request.get_json() or {}
-
     return jsonify(
         post_to_api(
             "/api/device/info/getDeviceListBackend",
@@ -130,11 +111,9 @@ def device_list():
         )
     )
 
-
 @vanne_bp.route("/device/details", methods=["POST"])
 def device_details():
     req = request.get_json() or {}
-
     return jsonify(
         post_to_api(
             "/api/device/info/getDeviceInfo",
